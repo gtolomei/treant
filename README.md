@@ -1,1 +1,1 @@
-# Non-Interferent Learning
+# Non-Interferent Machine Learning
