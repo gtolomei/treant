@@ -1,1 +1,3 @@
 # Non-Interferent Machine Learning
+
+In this work, we propose _non-interference_ as a robust foundation of the security of machine learning systems. Non-interference is a well-known computer security property, which has been used to reason about information flows in a range of settings, capturing both _confidentiality_ and _integrity_ of computer programs. When used to model integrity, non-interference lets the attacker corrupt low integrity inputs and requires that the high integrity outputs produced by the system under attack are unaffected by such manipulations. We observe that this naturally fits the case of machine-learned models under attack at test time, by requiring that adversarial perturbations have only a limited impact on the predicted class labels.
