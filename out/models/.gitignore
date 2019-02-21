@@ -1,4 +1,5 @@
 *.pkl
 *.model
 *.csv
+*.tmp
 !.gitignore
