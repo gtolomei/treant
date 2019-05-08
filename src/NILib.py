@@ -191,6 +191,23 @@ def optimize_log_loss_uma(preds, train_data):
     
     return grads, hess
 
+def optimize_log_loss_uma_ext(preds, train_data):
+    labels = train_data.get_label()
+    weights = train_data.get_weight()
+    
+    grads = np.zeros_like(labels, dtype=np.float64)
+    hess = np.zeros_like(grads)
+    
+    norm = 1.0 / float(len(labels))
+
+    exp_pl = np.exp(- preds * labels)
+
+    x_grad = weights * exp_pl
+
+    grads = norm * x_grad * (- labels)
+    hess  = norm * x_grad * (1.0 - x_grad)
+
+    return grads, hess
 
 # # <code>optimize_non_interferent_log_loss</code>
 # 
