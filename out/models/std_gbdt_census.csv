@@ -1,2 +1,2 @@
 num_trees,learning_rate,num_leaves,best_round,avg_binary_log_loss
-500.0,0.1,24.0,234.0,0.2986157025326754
+500.0,0.1,16.0,394.0,0.2955251974608843
