@@ -192,28 +192,6 @@ def optimize_log_loss_uma(preds, train_data):
     return grads, hess
 
 
-# In[ ]:
-
-
-def optimize_log_loss_uma_ext(preds, train_data):
-    labels = train_data.get_label()
-    weights = train_data.get_weight()
-    
-    grads = np.zeros_like(labels, dtype=np.float64)
-    hess = np.zeros_like(grads)
-    
-    norm = 1.0 / float(len(labels))
-
-    exp_pl = np.exp(- preds * labels)
-
-    x_grad = weights * exp_pl
-
-    grads = norm * x_grad * (- labels)
-    hess  = norm * x_grad * (1.0 - x_grad)
-
-    return grads, hess
-
-
 # # <code>optimize_non_interferent_log_loss</code>
 # 
 # $$
@@ -246,24 +224,6 @@ def optimize_non_interferent_log_loss(preds, train_data, alpha=1.0):
     hess  = alpha*hess_uma  + (1.0-alpha)*hess_plain
 #     grads *= k
 #     hess *= k
-    
-    return grads, hess
-
-
-# In[ ]:
-
-
-def optimize_non_interferent_log_loss_claudio(preds, train_data, alpha=1.0):
-    # binary logloss under maximal attack
-    grads_uma, hess_uma = optimize_log_loss_uma(preds, train_data)
-    
-    # binary logloss (plain)
-    grads_plain, hess_plain = optimize_log_loss(preds, train_data)
-    
-    # combine the above two losses together
-    K = 100.0
-    grads = K * (alpha*grads_uma + (1.0-alpha)*grads_plain)
-    hess  = K * (alpha*hess_uma  + (1.0-alpha)*hess_plain)
     
     return grads, hess
 
