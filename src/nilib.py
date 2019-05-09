@@ -13,7 +13,7 @@ def label_encode(dataset, categorical_features):
     return dataset_le
 
 def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file, 
-                              train_split=0.7, valid_split=0.1, force=False):
+                              train_split=0.6, valid_split=0.2, force=False):
     
     
     if  (force or 
