@@ -1102,9 +1102,8 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             "*****************************************************")
 
     def __getstate__(self):
-        d = self.__dict__.copy()
-        if 'logger' in d:
-            d['logger'] = d['logger'].name
+        d = dict(self.__dict__)
+        del d['logger']
         return d
 
     def __setstate__(self, d):
@@ -1692,9 +1691,8 @@ class AdversarialBoostingTrees(object):
         self.logger = logging.getLogger(__name__)
 
     def __getstate__(self):
-        d = self.__dict__.copy()
-        if 'logger' in d:
-            d['logger'] = d['logger'].name
+        d = dict(self.__dict__)
+        del d['logger']
         return d
 
     def __setstate__(self, d):
