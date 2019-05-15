@@ -79,6 +79,16 @@ class AttackerRule:
 
         self.logger = logging.getLogger(__name__)
 
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['logger']
+        return d
+
+    def __setstate__(self, d):
+        if 'logger' in d:
+            d['logger'] = logging.getLogger(d['logger'])
+        self.__dict__.update(d)
+
     def get_cost(self):
         """
         Return the cost of this rule.
@@ -159,6 +169,16 @@ class Attacker:
 
         self.logger = logging.getLogger(__name__)
 
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['logger']
+        return d
+
+    def __setstate__(self, d):
+        if 'logger' in d:
+            d['logger'] = logging.getLogger(d['logger'])
+        self.__dict__.update(d)
+
 ################################################### PUBLIC API ###################################################
 
     def is_filled(self):
@@ -182,14 +202,15 @@ class Attacker:
             # if that is the case, just compute all the attacks from scratch
             self.__compute_attacks(attacks_filename)
         else:  # otherwise, try to load the attacks from the input file
+            self.logger.info(
+                "Loading attacks to the dataset from file: {}".format(attacks_filename))
             try:
-                self.logger.info(
-                    "Loading attacks to the dataset from file: {}".format(attacks_filename))
                 with open(attacks_filename, 'rb') as attacks_file:
                     self.attacks = dill.load(attacks_file)
-            except Exception:
+            except Exception as dill_ex:
                 self.logger.error(
-                    "Unable to load attacks to the dataset from file: {}".format(attacks_filename))
+                    "Unable to load attacks to the dataset from file using dill: {}\nException: {}".format(attacks_filename, dill_ex))
+                self.logger.info("Eventually, recompute the attacks from scratch and store them to: {}".format(attacks_filename))
                 self.__compute_attacks(attacks_filename)
 
     def attack(self, x, feature_id, cost):
@@ -308,6 +329,16 @@ class Constraint(object):
         self.bound = bound
 
         self.logger = logging.getLogger(__name__)
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['logger']
+        return d
+
+    def __setstate__(self, d):
+        if 'logger' in d:
+            d['logger'] = logging.getLogger(d['logger'])
+        self.__dict__.update(d)
 
     def propagate_left(self, attacker, feature_id, feature_value, is_numerical):
         """
@@ -438,6 +469,16 @@ class Node(object):
 
         self.logger = logging.getLogger(__name__)
 
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['logger']
+        return d
+
+    def __setstate__(self, d):
+        if 'logger' in d:
+            d['logger'] = logging.getLogger(d['logger'])
+        self.__dict__.update(d)
+
     def set_node_prediction(self, prediction_score, threshold=.5):
         self.prediction_score = prediction_score
         if self.prediction_score > threshold:
@@ -521,6 +562,16 @@ class SplitOptimizer(object):
             self.split_function_name = split_function_name
 
         self.logger = logging.getLogger(__name__)
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['logger']
+        return d
+
+    def __setstate__(self, d):
+        if 'logger' in d:
+            d['logger'] = logging.getLogger(d['logger'])
+        self.__dict__.update(d)
 
     @staticmethod
     def __gini_impurity(y_true, y_pred):
@@ -1584,6 +1635,16 @@ class RobustForest(object):
         self.logger.info(
             "*****************************************************")
 
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['logger']
+        return d
+
+    def __setstate__(self, d):
+        if 'logger' in d:
+            d['logger'] = logging.getLogger(d['logger'])
+        self.__dict__.update(d)
+
     def fit(self, X, y=None, dump_filename='./robust_forest', dump_n_trees=10):
         """
         This function is the public API's entry point for client code to start training a single Robust Random Forest.
@@ -1773,7 +1834,7 @@ class AdversarialBoostingTrees(object):
 
         return X_new, y_new
 
-    def fit(self, X, y=None, dump_filename='./adv_boosting', dump_n_trees=10):
+    def fit(self, X, y=None, dump_filename='./adv-boosting', dump_n_trees=10):
         """
         t_0 <- Train(D)
         for i in [1, N_TREES]:
