@@ -281,12 +281,6 @@ class Attacker:
         """
         queue = [
             (x, cost)]  # enqueue the instance as it is, along with its associated cost computed so far
-        # check the rules applicable to the current feature_id
-        applicables = [
-            r for r in self.rules if r.get_target_feature() == feature_id]
-        # extract the list of applicable rules out of the set of all rules
-        applicables = [r for r in applicables if r.is_applicable(
-            x, self.numerical_idx)]
         attacks = []  # prepare the list of attacks to be eventually returned
         # loop until the queue is not empty
         while len(queue) != 0:
@@ -294,6 +288,11 @@ class Attacker:
             x, b = queue.pop()
             # append the current attacked instance to the list of attacks
             attacks.append((x, b))
+            # check the rules applicable to the current feature_id
+            applicables = [r for r in self.rules if r.get_target_feature() == feature_id]
+            # extract the list of applicable rules out of the set of all rules
+            applicables = [r for r in applicables if r.is_applicable(x, self.numerical_idx)]
+
             for r in applicables:  # for each applicable rule
                 # check if the current budget of the attacker is large enough to apply the rule
                 if self.budget >= b + r.get_cost():
