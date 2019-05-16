@@ -87,6 +87,8 @@ class AttackerRule:
     def __setstate__(self, d):
         if 'logger' in d:
             d['logger'] = logging.getLogger(d['logger'])
+        else:
+            self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
     def get_cost(self):
@@ -172,11 +174,15 @@ class Attacker:
     def __getstate__(self):
         d = dict(self.__dict__)
         del d['logger']
+        if 'X' in d:
+            del d['X']
         return d
 
     def __setstate__(self, d):
         if 'logger' in d:
             d['logger'] = logging.getLogger(d['logger'])
+        else:
+            self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
 ################################################### PUBLIC API ###################################################
@@ -210,7 +216,8 @@ class Attacker:
             except Exception as dill_ex:
                 self.logger.error(
                     "Unable to load attacks to the dataset from file using dill: {}\nException: {}".format(attacks_filename, dill_ex))
-                self.logger.info("Eventually, recompute the attacks from scratch and store them to: {}".format(attacks_filename))
+                self.logger.info(
+                    "Eventually, recompute the attacks from scratch and store them to: {}".format(attacks_filename))
                 self.__compute_attacks(attacks_filename)
 
     def attack(self, x, feature_id, cost):
@@ -338,6 +345,8 @@ class Constraint(object):
     def __setstate__(self, d):
         if 'logger' in d:
             d['logger'] = logging.getLogger(d['logger'])
+        else:
+            self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
     def propagate_left(self, attacker, feature_id, feature_value, is_numerical):
@@ -477,6 +486,8 @@ class Node(object):
     def __setstate__(self, d):
         if 'logger' in d:
             d['logger'] = logging.getLogger(d['logger'])
+        else:
+            self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
     def set_node_prediction(self, prediction_score, threshold=.5):
@@ -571,6 +582,8 @@ class SplitOptimizer(object):
     def __setstate__(self, d):
         if 'logger' in d:
             d['logger'] = logging.getLogger(d['logger'])
+        else:
+            self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
     @staticmethod
@@ -1160,6 +1173,8 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
     def __setstate__(self, d):
         if 'logger' in d:
             d['logger'] = logging.getLogger(d['logger'])
+        else:
+            self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
     def __infer_numerical_features(self, numerics=['integer', 'floating']):
@@ -1643,6 +1658,8 @@ class RobustForest(object):
     def __setstate__(self, d):
         if 'logger' in d:
             d['logger'] = logging.getLogger(d['logger'])
+        else:
+            self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
     def fit(self, X, y=None, dump_filename='./robust_forest', dump_n_trees=10):
@@ -1682,7 +1699,7 @@ class RobustForest(object):
             if (i + 1) % dump_n_trees == 0 and (i + 1) < self.n_estimators:
                 self.logger.info('==> {} trees have been fit! Dumping out the current learned forest to file: {}_{}'.format(
                     i + 1, dump_filename, i + 1))
-                self.save('{}_{}.dill'.format(dump_filename, i + 1))
+                self.save('{}_{}.tmp'.format(dump_filename, i + 1))
 
         self.is_trained = True
 
@@ -1704,6 +1721,12 @@ class RobustForest(object):
         """
         with open(filename, 'wb') as model_file:
             dill.dump(self, model_file)
+
+        out_df = pd.DataFrame(columns=[
+                              'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
+        out_df = out_df.append({'num_trees': self.n_estimators, 'learning_rate': None, 'num_leaves': None, 'best_round': None,
+                                'metric': 0.0, 'filename': filename}, ignore_index=True)
+        out_df.to_csv(filename.split('_B')[0] + '.csv', index=False)
 
     @staticmethod
     def load(filename):
@@ -1712,192 +1735,3 @@ class RobustForest(object):
 
 
 ##########################################################################
-
-class AdversarialBoostingTrees(object):
-    """
-    This class implements Adversarial Boosting Trees, i.e., an ensemble of Decision Trees
-    learned using adversarial boosting technique.
-    Inspired by sklearn API, it exposes two main methods:
-    - fit(X, y)
-    - predict(X)
-    The former is used at training time for learning the ensemble;
-    the latter is used at inference (testing) time for computing predictions using the learned forest.
-
-    """
-
-    def __init__(self,
-                 forest_id,
-                 base_estimator=RobustDecisionTree(),
-                 n_estimators=100,
-                 attacker=Attacker([], 0)
-                 ):
-        """
-        Class constructor.
-
-        Args:
-            forest_id (int): forest identifier.
-            base_estimator (:obj:) base estimator used to build this ensemble (default = RobustDecisionTree).
-            n_estimators (int): number of estimators this ensemble is made of (default = 100).
-            attacker (:obj:`Attacker`): attacker.
-        """
-
-        self.forest_id = forest_id
-        self.base_estimator = base_estimator
-        self.n_estimators = n_estimators
-        self.attacker = attacker
-        self.max_depth = self.base_estimator.max_depth
-        self.estimators = []
-        self.is_trained = False
-
-        self.logger = logging.getLogger(__name__)
-
-    def __getstate__(self):
-        d = dict(self.__dict__)
-        del d['logger']
-        return d
-
-    def __setstate__(self, d):
-        if 'logger' in d:
-            d['logger'] = logging.getLogger(d['logger'])
-        self.__dict__.update(d)
-
-    def __predict(self, X, y=None, estimator_ids=None):
-        if estimator_ids is None:
-            estimator_ids = range(self.n_estimators)
-
-        return stats.mode([self.estimators[e_id].predict(X, y) for e_id in estimator_ids], axis=0).mode[0]
-
-    def __predict_proba(self, X, y=None, estimator_ids=None):
-        if estimator_ids is None:
-            estimator_ids = range(self.n_estimators)
-
-        return np.mean([self.estimators[e_id].predict_proba(X, y) for e_id in estimator_ids], axis=0)
-
-    def __get_min_cost_attack(self, y_preds_costs_attacks, y):
-
-        min_cost = np.infty
-        min_cost_attack_id = None
-
-        for i, p in enumerate(y_preds_costs_attacks):
-            if p[0] != y:
-                if p[1] < min_cost:
-                    min_cost_attack_id = i
-                    min_cost = p[1]
-
-        return min_cost_attack_id
-
-    def __build_attacked_dataset(self, X, y, trees):
-        # initialize the dataset to be returned
-        X_att = np.zeros((X.shape[0], X.shape[1]), dtype="object")
-        y_att = np.full((y.shape[0]), np.nan)
-
-        # loop through every instance
-        for i in range(0, X.shape[0]):
-            attacks_i = []  # prepare the list of possible attacks to the i-th instance
-            for j in range(0, X.shape[1]):
-                # extend the list of possible attacks to the i-th instance with that targeting the j-th feature
-                attacks_i.extend(self.attacker.attack(X[i, :], j, 0))
-
-            # building a list of predictions for all the attacks to the i-th instance
-            # this is a list of tuples, where each tuple is made of the prediction made by the current forest
-            # for a given attack, and its cost
-            # e.g., [(0, 2.5), (0, 1.2), (1, 0.9), (0, 0.4), (1, 0.2), ...]
-            # get all the attacked instances x'
-            x_attacks_i = [np.array(atk[0], dtype="object").reshape(
-                (1, X.shape[1])) for atk in attacks_i]
-            # get all the associated costs of such attacks
-            costs_attacks_i = [atk[1] for atk in attacks_i]
-            # get all the predictions made by the current forest corresponding to all the attacks
-            y_preds_attacks_i = [self.__predict(x_att, estimator_ids=range(len(trees)))[0]
-                                 for x_att in x_attacks_i]
-            # generating the list of tuples, as described above
-            y_preds_costs_attacks_i = zip(y_preds_attacks_i, costs_attacks_i)
-            # get the index of the minimal cost attack to x s.t. the label is switched
-            min_cost_attack_i = self.__get_min_cost_attack(
-                y_preds_costs_attacks_i, y[i])
-
-            # if there exists an attack which also happens to switch the label (with minimal cost)
-            if min_cost_attack_i is not None:
-                # add a new instance to the final dataset
-                X_att[i] = x_attacks_i[min_cost_attack_i]
-                y_att[i] = y[i]
-
-        # eventually, return the sub-feature-matrix X_att whose entries are all non-zero
-        mask_X = np.all(np.equal(X_att, 0), axis=1)
-        X_att_new = X_att[~mask_X]
-        # similarly, return the sub-label-vector y_att whose entries are all non-nan
-        y_att_new = y_att[~np.isnan(y_att)].astype("int64")
-        # concatenate X_att_new to X
-        X_new = np.concatenate((X, X_att_new))
-        # concatenate y_att_new to y
-        y_new = np.concatenate((y, y_att_new))
-
-        return X_new, y_new
-
-    def fit(self, X, y=None, dump_filename='./adv-boosting', dump_n_trees=10):
-        """
-        t_0 <- Train(D)
-        for i in [1, N_TREES]:
-            F <- Forest(t_0, ..., t_{i-1})
-            D' <- D
-            for each x in D:
-                find the minimal cost x' such that F(x') != F(x)
-                D' <- D' + x'
-            t_i = Train(D')
-        return F
-        """
-
-        # 1. fit the base estimator (i.e., standard decision tree) on (X, y)
-        self.base_estimator.fit(X, y)
-        # 2. append this learned estimator to the final list of estimators
-        self.estimators.append(self.base_estimator)
-        # 3. loop throug all the remaining estimators (to fit)
-        for i in range(1, self.n_estimators):
-            # get the first i estimators (already trained)
-            trees = self.estimators[:i]
-            self.logger.info("############## Boosting Iteration n. {}: using {} trees ##############"
-                             .format(i, len(trees)))
-            # build a new dataset using the predictions made by the current ensemble of trees
-            X_att, y_att = self.__build_attacked_dataset(X, y, trees)
-
-            tree = RobustDecisionTree(tree_id=i,
-                                      attacker=self.base_estimator.attacker,
-                                      split_optimizer=self.base_estimator.split_optimizer,
-                                      max_depth=self.base_estimator.max_depth,
-                                      min_instances_per_node=self.base_estimator.min_instances_per_node,
-                                      max_samples=self.base_estimator.max_samples,
-                                      max_features=self.base_estimator.max_features,
-                                      feature_blacklist=self.base_estimator.feature_blacklist,
-                                      seed=i
-                                      )  # build up a fresh, new tree
-            # fit the newly created tree to the extended dataset
-            tree.fit(X_att, y_att)
-            # append the latest trained tree to the list of estimators
-            self.estimators.append(tree)
-
-            if (i + 1) % dump_n_trees == 0 and (i + 1) < self.n_estimators:
-                self.logger.info('==> {} trees have been fit! Dumping out the current learned forest to file: {}_{}'.format(
-                    i + 1, dump_filename, i + 1))
-                self.save('{}_{}.dill'.format(dump_filename, i + 1))
-
-        self.is_trained = True
-
-        return self
-
-    def predict(self, X, y=None, estimator_ids=None):
-        return self.__predict(X, y, estimator_ids=estimator_ids)
-
-    def predict_proba(self, X, y=None, estimator_ids=None):
-        return self.__predict_proba(X, y, estimator_ids=estimator_ids)
-
-    def save(self, filename):
-        """
-        This function is used to persist this RobustForest object to file on disk using dill.
-        """
-        with open(filename, 'wb') as model_file:
-            dill.dump(self, model_file)
-
-    @staticmethod
-    def load(filename):
-        with open(filename, 'rb') as model_file:
-            return dill.load(model_file)
