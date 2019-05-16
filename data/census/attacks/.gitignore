@@ -1,0 +1,7 @@
+# Ignore the following files in this directory
+.DS_Store
+.ipynb_checkpoints
+*.atks*
+*.json*
+
+!.gitignore

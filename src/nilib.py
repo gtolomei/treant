@@ -17,9 +17,9 @@ def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
     
     
     if  (force or 
-          not os.path.exists(atk_train_file+".cat.bz2") or
-          not os.path.exists(atk_valid_file+".cat.bz2") or
-          not os.path.exists(atk_test_file+".cat.bz2") or 
+          not os.path.exists(atk_train_file+".atks.bz2") or
+          not os.path.exists(atk_valid_file+".atks.bz2") or
+          not os.path.exists(atk_test_file+".atks.bz2") or 
           not os.path.exists(atk_train_file+".cat.json") ):
     
         print ("Pre-processing original files...")
