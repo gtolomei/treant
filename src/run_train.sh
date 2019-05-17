@@ -15,86 +15,36 @@
 #       url          = {https://doi.org/10.5281/zenodo.1146014}
 # }
 
+if [ $# -lt 1 ]
+then
+    echo "Wrong number of input arguments supplied! Please, invoke the script as follows:"
+    echo ""
+    echo "> ./run_train.sh <DATASET_NAME>"
+    echo ""
+    echo "where:"
+    echo "- <DATASET_NAME> is the name of the dataset used for this training run (e.g., census)"
+    echo ""
+    exit 1
+fi
 
-#mkdir -p out/models
 
-PARALLEL=16
-#PARALLEL=4
+PARALLEL=4
 
-TRAIN=./train_robust_forest.sh
+DATASET_NAME=$1
+BASH_SCRIPT_NAME="train_robust_forest"
+BASH_SCRIPT="${BASH_SCRIPT_NAME}.sh"
 
-# 1 tree already done
-N_ESTIMATORS=(10)
-BUDGETS=(30)
-DEPTHS=(8)
 ALGO=(robust)
-
-# standard 1 0 8 [attack-unaware standard decision tree]
-# robust 1 60 8 [attack-aware robust decision tree]
-# standard 1000 0 8 [attack-unaware standard random forest]
-# reduced 1000 0 8 [attack-unaware reduced random forest]
-# adv-boosting 1000 60 8 [attack-aware adversarial boosting]
-# robust 1000 60 8 [attack-aware robust random forest]
+N_ESTIMATORS=(10)
+DEPTHS=(8)
+BUDGETS=(30)
 
 
+echo "*********** Training Robust Random Forest on `${DATASET_NAME}` dataset ***********"
+echo ""
 
-for d in ${DEPTHS[@]}
-do  
-    for a in ${ALGO[@]}
-    do  
-        if [ "$a" = "standard" ]; then
-            for e in ${N_ESTIMATORS[@]}
-            do
-                CMD="";
-                CMD="${TRAIN} ${a} ${e} ${d} 0";
-                    
-                echo executing $CMD;
-                sem -j ${PARALLEL} ${CMD};
-            done
-                
-        elif [[ "$a" = "reduced" ]]; then
-            for e in ${N_ESTIMATORS[@]}
-            do
-                if [ "$e" -gt 1 ]
-                then
-                    CMD="";
-                    CMD="${TRAIN} ${a} ${e} ${d} 0";
-                    
-                    echo executing $CMD;
-                    sem -j ${PARALLEL} ${CMD};
-                fi
-            done
-
-        elif [[ "$a" = "adv-boosting" ]]; then
-            for e in ${N_ESTIMATORS[@]}
-            do
-                if [ "$e" -gt 1 ]
-                then
-                    CMD="";
-                    for b in ${BUDGETS[@]}
-                    do
-                        CMD="${TRAIN} ${a} ${e} ${d} ${b}";
-                    
-                        echo executing $CMD;
-                        sem -j ${PARALLEL} ${CMD};
-                    done
-                fi
-            done
-
-        elif [[ "$a" = "robust" ]]; then
-            for e in ${N_ESTIMATORS[@]}
-            do
-                CMD="";
-                for b in ${BUDGETS[@]}
-                do
-                    CMD="${TRAIN} ${a} ${e} ${d} ${b}";
-                    
-                    echo executing $CMD;
-                    sem -j ${PARALLEL} ${CMD};
-                done
-            done
-
-        fi
-    done
-done
-sem --wait
+echo "parallel --eta --bar -j ${PARALLEL} --joblog /tmp/${BASH_SCRIPT_NAME}_${DATASET_NAME}.log ./${BASH_SCRIPT} {1} {2} {3} {4} {5} ::: "${DATASET_NAME}" ::: "${ALGO[@]}" ::: "${N_ESTIMATORS[@]}" ::: "${DEPTHS[@]}" ::: "${BUDGETS[@]}""
+echo ""
+parallel --eta --bar -j ${PARALLEL} --joblog /tmp/${BASH_SCRIPT_NAME}_${DATASET_NAME}.log ./${BASH_SCRIPT} {1} {2} {3} {4} {5} ::: "${DATASET_NAME}" ::: "${ALGO[@]}" ::: "${N_ESTIMATORS[@]}" ::: "${DEPTHS[@]}" ::: "${BUDGETS[@]}"
+echo ""
+echo "**************************************************************"

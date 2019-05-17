@@ -1,0 +1,132 @@
+{
+    "attacks": [{
+            "workclass": [{
+                "pre": "('Never-worked', 'Never-worked')",
+                "post": "Without-pay",
+                "cost": 1,
+                "is_numerical": false
+            }]
+        },
+        {
+            "marital_status": [{
+                    "pre": "('Divorced', 'Divorced')",
+                    "post": "Never-married",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Separated', 'Separated')",
+                    "post": "Never-married",
+                    "cost": 1,
+                    "is_numerical": false
+                }
+
+            ]
+        },
+        {
+            "occupation": [{
+                    "pre": "('Craft-repair', 'Craft-repair')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Prof-specialty', 'Prof-specialty')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Exec-managerial', 'Exec-managerial')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Adm-clerical', 'Adm-clerical')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Sales', 'Sales')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Machine-op-inspct', 'Machine-op-inspct')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Transport-moving', 'Transport-moving')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Handlers-cleaners', 'Handlers-cleaners')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Farming-fishing', 'Farming-fishing')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Tech-support', 'Tech-support')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Protective-serv', 'Protective-serv')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Priv-house-serv', 'Priv-house-serv')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                },
+                {
+                    "pre": "('Armed-Forces', 'Armed-Forces')",
+                    "post": "Other-service",
+                    "cost": 1,
+                    "is_numerical": false
+                }
+            ]
+        },
+        {
+            "education_num": [{
+                "pre": "(13, 16)",
+                "post": -1,
+                "cost": 20,
+                "is_numerical": true
+            }]
+        },
+        {
+            "capital_gain": [{
+                "pre": "(0, np.inf)",
+                "post": 2000,
+                "cost": 50,
+                "is_numerical": true
+            }]
+        },
+        {
+            "hours_per_week": [{
+                "pre": "(0, np.inf)",
+                "post": 4,
+                "cost": 100,
+                "is_numerical": true
+            }]
+        }
+    ]
+}

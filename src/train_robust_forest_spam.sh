@@ -4,7 +4,7 @@ if [ $# -lt 4 ]
 then
     echo "Wrong number of input arguments supplied! Please, invoke the script as follows:"
     echo ""
-    echo "> ./train_robust_forest_wine.sh <LEARNING_ALGORITHM> <N_ESTIMATORS> <MAX_DEPTH> <ATTACKER_BUDGET>"
+    echo "> ./train_robust_forest_spam.sh <LEARNING_ALGORITHM> <N_ESTIMATORS> <MAX_DEPTH> <ATTACKER_BUDGET>"
     echo ""
     echo "where:"
     echo "- <LEARNING_ALGORITHM> is one in {standard, reduced, adv-boosting, robust}"
@@ -15,7 +15,7 @@ then
     exit 1
 fi
 
-DATASET_NAME=wine
+DATASET_NAME=spam
 DATASET_DIR=../data
 
 PYTHON_SCRIPT_NAME="python3 -B ./train_robust_forest_${DATASET_NAME}.py"
@@ -34,7 +34,7 @@ ATTACKER_BUDGET=$4
 ATTACKS_FILE=${DATASET_DIR}/${DATASET_NAME}/attacks/${DATASET_NAME}
 
 # HYPERPARAMETERS
-N_INSTANCES=100
+N_INSTANCES=1000
 N_INSTANCES_PER_NODE=20
 
 # Check if there is any log file in the current working directory
@@ -53,7 +53,7 @@ echo "==> Training $LEARNING_ALGORITHM model..."
 
 if [ "$LEARNING_ALGORITHM" = "reduced" ] 
 then
-    CMD_NAME="$CMD_NAME -xf alcohol residual_sugar volatile_acidity"
+    CMD_NAME="$CMD_NAME -xf workclass marital_status occupation education_num capital_gain hours_per_week"
 fi
 
 if [ $N_ESTIMATORS -gt 1 -a "$LEARNING_ALGORITHM" != "adv-boosting" ] 

@@ -16,7 +16,7 @@ import pandas as pd
 import robust_forest as rf
 
 # logging.basicConfig(
-#     format='%(asctime)s : %(levelname)s : %(message)s', level=logger.info)
+#     format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 
 def configure_logging():
@@ -37,7 +37,7 @@ def configure_logging():
 
     # log to file
     file_handler = logging.FileHandler(
-        filename="./train_robust_forest_wine.log", mode="w")
+        filename="./train_robust_forest_spam.log", mode="w")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -215,33 +215,49 @@ def is_strictly_positive(value):
 
 
 def create_attack_rules(dataset, colnames):
-    # pre_conditions = {feature_id: (value_left, value_right)}
-    # post_condition = {feature_id: new_value}
-    # cost
+    # Encoding feature attacks perpetrated by the attacker
 
     attack_rules = []
 
-    ########################### ALCOHOL ###########################
-
+    ########################### char_freq_! ###########################
     attack_rules.append(rf.AttackerRule(
-        {colnames.index("alcohol"): ((0, 10))},
-        {colnames.index("alcohol"): 0.75},
+        {colnames.index("char_freq_!"): ((1, np.inf))},
+        {colnames.index("char_freq_!"): -1},
         cost=10,
         is_numerical=True
     ))
-    ########################### RESIDUAL SUGAR ###########################
-
+    ########################### word_freq_remove ###########################
     attack_rules.append(rf.AttackerRule(
-        {colnames.index("residual_sugar"): ((8, np.inf))},
-        {colnames.index("residual_sugar"): -1.2},
+        {colnames.index("word_freq_remove"): ((0.5, np.inf))},
+        {colnames.index("word_freq_remove"): -0.5},
         cost=10,
         is_numerical=True
     ))
-    ########################### VOLATILE ACIDITY ###########################
-
+    ########################### char_freq_$ ###########################
     attack_rules.append(rf.AttackerRule(
-        {colnames.index("volatile_acidity"): ((0.6, np.inf))},
-        {colnames.index("volatile_acidity"): -0.3},
+        {colnames.index("char_freq_$"): ((0.1, np.inf))},
+        {colnames.index("char_freq_$"): -0.1},
+        cost=10,
+        is_numerical=True
+    ))
+    ########################### capital_run_length_average ###########################
+    attack_rules.append(rf.AttackerRule(
+        {colnames.index("capital_run_length_average"): ((5, np.inf))},
+        {colnames.index("capital_run_length_average"): -1},
+        cost=10,
+        is_numerical=True
+    ))
+    ########################### capital_run_length_total ###########################
+    attack_rules.append(rf.AttackerRule(
+        {colnames.index("capital_run_length_average"): ((400, np.inf))},
+        {colnames.index("capital_run_length_average"): -50},
+        cost=10,
+        is_numerical=True
+    ))
+    ########################### word_freq_hp ###########################
+    attack_rules.append(rf.AttackerRule(
+        {colnames.index("word_freq_hp"): ((1, np.inf))},
+        {colnames.index("word_freq_hp"): -1},
         cost=10,
         is_numerical=True
     ))
@@ -319,6 +335,15 @@ def main(options):
             train.shape[1] - 1,
             train.shape[1]))
 
+    logger.info("==> Loading validation set from " + options['valid_set'])
+    valid = loading_dataset(options['valid_set'])
+
+    logger.info(
+        "- Shape of the validation set: number of instances = {}; number of features = {} ({} is the label)".format(
+            valid.shape[0],
+            valid.shape[1] - 1,
+            valid.shape[1]))
+
     logger.info("==> Loading test set from " + options['test_set'])
     test = loading_dataset(options['test_set'])
 
@@ -328,7 +353,7 @@ def main(options):
             test.shape[1] - 1,
             test.shape[1]))
 
-    logger.info("==> Extract column names...")
+    logger.info("==> Extract column names and numerical features...")
     # column names
     colnames = train.columns.tolist()
 
