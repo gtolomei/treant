@@ -36,7 +36,7 @@ ATTACKS_FILE=${DATASET_DIR}/${DATASET_NAME}/attacks/${DATASET_NAME}
 ATTACK_RULES_FILE=${DATASET_DIR}/${DATASET_NAME}/attacks/attacks.json
 
 # HYPERPARAMETERS
-N_INSTANCES=100
+N_INSTANCES=10000
 N_INSTANCES_PER_NODE=20
 
 # Check if there is any log file in the current working directory
