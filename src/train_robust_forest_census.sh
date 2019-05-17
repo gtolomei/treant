@@ -4,7 +4,7 @@ if [ $# -lt 4 ]
 then
     echo "Wrong number of input arguments supplied! Please, invoke the script as follows:"
     echo ""
-    echo "> ./train_robust_forest.sh <LEARNING_ALGORITHM> <N_ESTIMATORS> <MAX_DEPTH> <ATTACKER_BUDGET>"
+    echo "> ./train_robust_forest_census.sh <LEARNING_ALGORITHM> <N_ESTIMATORS> <MAX_DEPTH> <ATTACKER_BUDGET>"
     echo ""
     echo "where:"
     echo "- <LEARNING_ALGORITHM> is one in {standard, reduced, adv-boosting, robust}"
@@ -38,12 +38,12 @@ N_INSTANCES=1000
 N_INSTANCES_PER_NODE=20
 
 # Check if there is any log file in the current working directory
-count=`ls -1 ./train_robust_forest.log 2>/dev/null | wc -l`
+count=`ls -1 ./train_robust_forest_${DATASET_NAME}.log 2>/dev/null | wc -l`
 if [ $count != 0 ]
 then 
     echo "==> Cleaning up log files..."
-    echo "rm ./train_robust_forest.log"
-    rm ./train_robust_forest.log
+    echo "rm ./train_robust_forest_${DATASET_NAME}.log"
+    rm ./train_robust_forest_${DATASET_NAME}.log
 fi 
 
 

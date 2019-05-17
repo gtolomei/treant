@@ -19,9 +19,8 @@
 #mkdir -p out/models
 
 PARALLEL=16
-#PARALLEL=4
 
-TRAIN=./train_robust_forest.sh
+TRAIN=./train_robust_forest_spam.sh
 
 # 1 tree already done
 N_ESTIMATORS=(10)

@@ -328,21 +328,9 @@ def main(options):
             test.shape[1] - 1,
             test.shape[1]))
 
-    # logger.info("==> Dataset preprocessing...")
-    # train.loc[train['quality'] <= 5, 'quality'] = -1
-    # train.loc[train['quality'] > 5, 'quality'] = 1
-    # test.loc[test['quality'] <= 5, 'quality'] = -1
-    # test.loc[test['quality'] > 5, 'quality'] = 1
-
     logger.info("==> Extract column names...")
     # column names
     colnames = train.columns.tolist()
-
-    # train_test = pd.concat([train, test], ignore_index=True)
-
-    # X = train_test.iloc[:, :-1].values  # feature matrix (train + test)
-    # # label vector (train + test)
-    # y = train_test.iloc[:, -1].replace(-1, 0).values
 
     logger.info("==> Encoding attack rules...")
     attack_rules = create_attack_rules(train, colnames)
@@ -379,32 +367,6 @@ def main(options):
         "==> Create the split optimizer which will be used for this training...")
     optimizer = rf.SplitOptimizer(
         split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'])
-
-    # if options['model_type'] == 'adv-boosting':
-    #     base_rdt = rf.RobustDecisionTree(0,
-    #                                      attacker=rf.Attacker([], 0),
-    #                                      split_optimizer=optimizer,
-    #                                      max_depth=options['max_depth'],
-    #                                      min_instances_per_node=options['instances_per_node'],
-    #                                      max_samples=options['bootstrap_samples'] / 100.0,
-    #                                      max_features=options['bootstrap_features'] / 100.0,
-    #                                      feature_blacklist=feature_blacklist
-    #                                      )
-
-    #     logger.info("==> Training \"{}\" forest ...".format(
-    #         options['model_type']))
-    #     # create adversarial boosting trees
-    #     abt = rf.AdversarialBoostingTrees(0,
-    #                                       base_estimator=base_rdt, n_estimators=options['n_estimators'], attacker=attacker)
-
-    #     abt.fit(X_train, y=y_train,
-    #             dump_filename=options['output_dirname'] + '/' + partial_output_model_filename, dump_n_trees=10)
-
-    #     logger.info("==> Eventually, serialize the \"{}\" forest just trained to {}".format(
-    #         options['model_type'], options['output_dirname'] + '/' + output_model_filename))
-    #     abt.save(options['output_dirname'] + '/' + output_model_filename)
-
-    # else:
 
     rdt = rf.RobustDecisionTree(0,
                                 attacker=attacker,

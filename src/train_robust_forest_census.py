@@ -37,7 +37,7 @@ def configure_logging():
 
     # log to file
     file_handler = logging.FileHandler(
-        filename="./train_robust_forest.log", mode="w")
+        filename="./train_robust_forest_census.log", mode="w")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)

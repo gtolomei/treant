@@ -37,7 +37,7 @@ def configure_logging():
 
     # log to file
     file_handler = logging.FileHandler(
-        filename="./train_robust_forest.log", mode="w")
+        filename="./train_robust_forest_spam.log", mode="w")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -215,100 +215,50 @@ def is_strictly_positive(value):
 
 
 def create_attack_rules(dataset, colnames):
-    # Encoding feature attacks perpetrated by the _weak_ attacker
-
-    # - ### workclass (_Private, Self-emp-not-inc, Self-emp-inc, Federal-gov, Local-gov, State-gov, Without-pay, Never-worked_):
-    # ```python
-    # if workclass == "Never-worked": workclass = "Without-pay"
-    # ```
-    #
-    # - ### marital_status (_Married-civ-spouse, Divorced, Never-married, Separated, Widowed, Married-spouse-absent, Married-AF-spouse_):
-    # ```python
-    # if marital_status == "Divorced" or marital_status == "Separated": marital_status = "Never-married"
-    # ```
-    #
-    # - ### occupation (_Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm-clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv, Armed-Forces_):
-    # ```python
-    # if not occupation == "Other-service": occupation = "Other-service"
-    # ```
-    #
-    # - ### education (_HS-grad, Some-college, Bachelors, Masters, Assoc-voc, 11th, Assoc-acdm, 10th, 7th-8th, Prof-school, 9th, 12th, Doctorate, 5th-6th, 1st-4th, Preschool_):
-    # ```python
-    # if education == "Doctorate" : education = "Prof-school"
-    # if education == "Prof-school" : education = "Masters"
-    # if education == "Masters" : education = "Bachelors"
-    # if education == "Bachelors" : education = "HS-grad"
-    # ```
-    # (**NOTE**: We actually implement this attack rule using the ordinal feature <code>**education_num**</code>.)
-
-    # Encoding feature attacks perpetrated by the _strong_ attacker
-
-    # Same as above plus the following two rules:
-    #
-    # - ### capital_gain (_continuous_):
-    # ```python
-    # capital_gain = capital_gain + 2500 (step = 500)
-    # ```
-    #
-    # - ### hours_per_week (_continuous_):
-    # ```python
-    # hours_per_week = hours_per_week + 8 (step = 4)
-    # ```
-    # pre_conditions = {feature_id: (value_left, value_right)}
-    # post_condition = {feature_id: new_value}
-    # cost
+    # Encoding feature attacks perpetrated by the attacker
 
     attack_rules = []
 
-    ########################### WORKCLASS ###########################
-
+    ########################### char_freq_! ###########################
     attack_rules.append(rf.AttackerRule(
-        {colnames.index("workclass"): ("Never-worked", "Never-worked")},
-        {colnames.index("workclass"): "Without-pay"},
-        cost=1,
-        is_numerical=False
-    ))
-    ########################### MARITAL STATUS ###########################
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("marital_status"): ("Divorced", "Divorced")},
-        {colnames.index("marital_status"): "Never-married"},
-        cost=1,
-        is_numerical=False
-    ))
-
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("marital_status"): ("Separated", "Separated")},
-        {colnames.index("marital_status"): "Never-married"},
-        cost=1,
-        is_numerical=False
-    ))
-    ########################### OCCUPATION ###########################
-    for occupation in dataset.occupation.value_counts().index.tolist():
-        attack_rules.append(rf.AttackerRule(
-            {colnames.index("occupation"): (occupation, occupation)},
-            {colnames.index("occupation"): "Other-service"},
-            cost=1,
-            is_numerical=False
-        ))
-    ########################### EDUCATION NUM ###########################
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("education_num"): (13, 16)},
-        {colnames.index("education_num"): -1},
-        cost=20,
+        {colnames.index("char_freq_!"): (1, np.inf)},
+        {colnames.index("char_freq_!"): -1},
+        cost=10,
         is_numerical=True
     ))
-    ########################### CAPITAL GAIN ###########################
+    ########################### word_freq_remove ###########################
     attack_rules.append(rf.AttackerRule(
-        {colnames.index("capital_gain"): (0, np.inf)},
-        {colnames.index("capital_gain"): 2000},
-        cost=50,
+        {colnames.index("word_freq_remove"): (0.5, np.inf)},
+        {colnames.index("word_freq_remove"): -0.5},
+        cost=10,
         is_numerical=True
     ))
-    ########################### HOURS PER WEEK ###########################
+    ########################### char_freq_$ ###########################
     attack_rules.append(rf.AttackerRule(
-        {colnames.index("hours_per_week"): (0, np.inf)},
-        {colnames.index("hours_per_week"): 4},
-        cost=100,
+        {colnames.index("char_freq_$"): (0.1, np.inf)},
+        {colnames.index("char_freq_$"): -0.1},
+        cost=10,
+        is_numerical=True
+    ))
+    ########################### capital_run_length_average ###########################
+    attack_rules.append(rf.AttackerRule(
+        {colnames.index("capital_run_length_average"): (5, np.inf)},
+        {colnames.index("capital_run_length_average"): -1},
+        cost=10,
+        is_numerical=True
+    ))
+    ########################### capital_run_length_total ###########################
+    attack_rules.append(rf.AttackerRule(
+        {colnames.index("capital_run_length_average"): (400, np.inf)},
+        {colnames.index("capital_run_length_average"): -50},
+        cost=10,
+        is_numerical=True
+    ))
+    ########################### word_freq_hp ###########################
+    attack_rules.append(rf.AttackerRule(
+        {colnames.index("word_freq_hp"): (1, np.inf)},
+        {colnames.index("word_freq_hp"): -1},
+        cost=10,
         is_numerical=True
     ))
 
@@ -407,12 +357,6 @@ def main(options):
     # column names
     colnames = train.columns.tolist()
 
-    # train_test = pd.concat([train, test], ignore_index=True)
-
-    # X = train_test.iloc[:, :-1].values  # feature matrix (train + test)
-    # # label vector (train + test)
-    # y = train_test.iloc[:, -1].replace(-1, 0).values
-
     logger.info("==> Encoding attack rules...")
     attack_rules = create_attack_rules(train, colnames)
     logger.info("==> Create the corresponding attacker...")
@@ -448,32 +392,6 @@ def main(options):
         "==> Create the split optimizer which will be used for this training...")
     optimizer = rf.SplitOptimizer(
         split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'])
-
-    # if options['model_type'] == 'adv-boosting':
-    #     base_rdt = rf.RobustDecisionTree(0,
-    #                                      attacker=rf.Attacker([], 0),
-    #                                      split_optimizer=optimizer,
-    #                                      max_depth=options['max_depth'],
-    #                                      min_instances_per_node=options['instances_per_node'],
-    #                                      max_samples=options['bootstrap_samples'] / 100.0,
-    #                                      max_features=options['bootstrap_features'] / 100.0,
-    #                                      feature_blacklist=feature_blacklist
-    #                                      )
-
-    #     logger.info("==> Training \"{}\" forest ...".format(
-    #         options['model_type']))
-    #     # create adversarial boosting trees
-    #     abt = rf.AdversarialBoostingTrees(0,
-    #                                       base_estimator=base_rdt, n_estimators=options['n_estimators'], attacker=attacker)
-
-    #     abt.fit(X_train, y=y_train,
-    #             dump_filename=options['output_dirname'] + '/' + partial_output_model_filename, dump_n_trees=10)
-
-    #     logger.info("==> Eventually, serialize the \"{}\" forest just trained to {}".format(
-    #         options['model_type'], options['output_dirname'] + '/' + output_model_filename))
-    #     abt.save(options['output_dirname'] + '/' + output_model_filename)
-
-    # else:
 
     rdt = rf.RobustDecisionTree(0,
                                 attacker=attacker,
