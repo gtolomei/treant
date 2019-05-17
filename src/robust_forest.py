@@ -289,9 +289,11 @@ class Attacker:
             # append the current attacked instance to the list of attacks
             attacks.append((x, b))
             # check the rules applicable to the current feature_id
-            applicables = [r for r in self.rules if r.get_target_feature() == feature_id]
+            applicables = [
+                r for r in self.rules if r.get_target_feature() == feature_id]
             # extract the list of applicable rules out of the set of all rules
-            applicables = [r for r in applicables if r.is_applicable(x, self.numerical_idx)]
+            applicables = [r for r in applicables if r.is_applicable(
+                x, self.numerical_idx)]
 
             for r in applicables:  # for each applicable rule
                 # check if the current budget of the attacker is large enough to apply the rule

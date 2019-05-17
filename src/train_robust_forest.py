@@ -4,22 +4,19 @@
 """
 train_robust_forest.py
 
-Created by Gabriele Tolomei on 2019-01-23.
+Created by Gabriele Tolomei on 2019-05-17.
 """
 
 import sys
-import os
 import argparse
 import logging
+import json
 import numpy as np
 import pandas as pd
 import robust_forest as rf
 
-# logging.basicConfig(
-#     format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
-
-def configure_logging():
+def configure_logging(dataset_name):
     """
     Logging setup
     """
@@ -37,7 +34,7 @@ def configure_logging():
 
     # log to file
     file_handler = logging.FileHandler(
-        filename="./train_robust_forest_spam.log", mode="w")
+        filename="./train_robust_forest_{}.log".format(dataset_name), mode="w")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -51,6 +48,10 @@ def get_options(cmd_args=None):
     """
     cmd_parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    cmd_parser.add_argument(
+        'dataset_name',
+        help="""Name of the dataset used for this training run.""",
+        type=str)
     cmd_parser.add_argument(
         'training_set',
         help="""Path to the file containing the training set.""",
@@ -136,10 +137,17 @@ def get_options(cmd_args=None):
         help="""Path to the file with attacks.""",
         type=str,
         default='./data/attacks')
+    cmd_parser.add_argument(
+        '-r',
+        '--attack_rules_filename',
+        help="""Path to the file with attack rules.""",
+        type=str,
+        default='./data/attacks/attacks.json')
 
     args = cmd_parser.parse_args(cmd_args)
 
     options = {}
+    options['dataset_name'] = args.dataset_name
     options['training_set'] = args.training_set
     options['valid_set'] = args.valid_set
     options['test_set'] = args.test_set
@@ -155,6 +163,7 @@ def get_options(cmd_args=None):
     options['instances_per_node'] = args.instances_per_node
     options['attacker_budget'] = args.attacker_budget
     options['attacks_filename'] = args.attacks_filename
+    options['attack_rules_filename'] = args.attack_rules_filename
 
     return options
 
@@ -214,53 +223,29 @@ def is_strictly_positive(value):
 ###########################################################################
 
 
-def create_attack_rules(dataset, colnames):
-    # Encoding feature attacks perpetrated by the attacker
+def load_attack_rules(attack_rules_filename, colnames):
 
     attack_rules = []
 
-    ########################### char_freq_! ###########################
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("char_freq_!"): ((1, np.inf))},
-        {colnames.index("char_freq_!"): -1},
-        cost=10,
-        is_numerical=True
-    ))
-    ########################### word_freq_remove ###########################
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("word_freq_remove"): ((0.5, np.inf))},
-        {colnames.index("word_freq_remove"): -0.5},
-        cost=10,
-        is_numerical=True
-    ))
-    ########################### char_freq_$ ###########################
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("char_freq_$"): ((0.1, np.inf))},
-        {colnames.index("char_freq_$"): -0.1},
-        cost=10,
-        is_numerical=True
-    ))
-    ########################### capital_run_length_average ###########################
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("capital_run_length_average"): ((5, np.inf))},
-        {colnames.index("capital_run_length_average"): -1},
-        cost=10,
-        is_numerical=True
-    ))
-    ########################### capital_run_length_total ###########################
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("capital_run_length_average"): ((400, np.inf))},
-        {colnames.index("capital_run_length_average"): -50},
-        cost=10,
-        is_numerical=True
-    ))
-    ########################### word_freq_hp ###########################
-    attack_rules.append(rf.AttackerRule(
-        {colnames.index("word_freq_hp"): ((1, np.inf))},
-        {colnames.index("word_freq_hp"): -1},
-        cost=10,
-        is_numerical=True
-    ))
+    with open(attack_rules_filename) as json_file:
+        json_data = json.load(json_file)
+        json_attacks = json_data["attacks"]
+        for attack in json_attacks:
+            for feature in attack:
+                feature_atk_list = attack[feature]
+                for feature_atk in feature_atk_list:
+                    pre = feature_atk["pre"]
+                    post = feature_atk["post"]
+                    cost = feature_atk["cost"]
+                    is_numerical = feature_atk["is_numerical"]
+                    attack_rules.append(
+                        rf.AttackerRule(
+                            {colnames.index(feature): (eval(pre))},
+                            {colnames.index(feature): post},
+                            cost=cost,
+                            is_numerical=is_numerical
+                        )
+                    )
 
     return attack_rules
 
@@ -324,7 +309,7 @@ def loading_dataset(dataset_filename, sep=","):
 
 def main(options):
 
-    logger = configure_logging()
+    logger = configure_logging(options['dataset_name'])
 
     logger.info("==> Loading training set from " + options['training_set'])
     train = loading_dataset(options['training_set'])
@@ -357,8 +342,9 @@ def main(options):
     # column names
     colnames = train.columns.tolist()
 
-    logger.info("==> Encoding attack rules...")
-    attack_rules = create_attack_rules(train, colnames)
+    logger.info("==> Loading attack rules from {}".format(options['attack_rules_filename']))
+    attack_rules = load_attack_rules(
+        options['attack_rules_filename'], colnames)
     logger.info("==> Create the corresponding attacker...")
     attacker = rf.Attacker(
         attack_rules, options['attacker_budget'])
