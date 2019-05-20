@@ -1759,3 +1759,5 @@ def prune_trained_model(model_filename, n=10):
                 model_filename_root + '_{}.model'.format(n)
 
             model.save(new_model_filename)
+            
+            print ("Saving:", new_model_filename)
