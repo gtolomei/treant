@@ -35,12 +35,12 @@ BASH_SCRIPT_NAME="train_robust_forest"
 BASH_SCRIPT="${BASH_SCRIPT_NAME}.sh"
 
 ALGO=(robust)
-N_ESTIMATORS=(50 100)
+N_ESTIMATORS=(100)
 DEPTHS=(8)
 BUDGETS=(30 60)
 
 
-echo "*********** Training Robust Random Forest on `${DATASET_NAME}` dataset ***********"
+echo "*********** Training Robust Random Forest on ${DATASET_NAME} dataset ***********"
 echo ""
 
 echo "parallel --eta --bar -j ${PARALLEL} --joblog /tmp/${BASH_SCRIPT_NAME}_${DATASET_NAME}.log ./${BASH_SCRIPT} {1} {2} {3} {4} {5} ::: "${DATASET_NAME}" ::: "${ALGO[@]}" ::: "${N_ESTIMATORS[@]}" ::: "${DEPTHS[@]}" ::: "${BUDGETS[@]}""

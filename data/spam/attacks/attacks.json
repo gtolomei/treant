@@ -3,7 +3,7 @@
             "char_freq_!": [{
                 "pre": "(1, np.inf)",
                 "post": -1,
-                "cost": 10,
+                "cost": 15,
                 "is_numerical": true
             }]
         },
@@ -11,7 +11,7 @@
             "word_freq_remove": [{
                     "pre": "(0.5, np.inf)",
                     "post": -0.5,
-                    "cost": 10,
+                    "cost": 15,
                     "is_numerical": true
                 }]
         },
@@ -19,7 +19,7 @@
             "char_freq_$": [{
                 "pre": "(0.1, np.inf)",
                 "post": -0.1,
-                "cost": 10,
+                "cost": 15,
                 "is_numerical": true
             }]
         },
@@ -27,7 +27,7 @@
             "capital_run_length_average": [{
                 "pre": "(5, np.inf)",
                 "post": -1,
-                "cost": 10,
+                "cost": 30,
                 "is_numerical": true
             }]
         },
@@ -35,7 +35,7 @@
             "capital_run_length_total": [{
                 "pre": "(400, np.inf)",
                 "post": -50,
-                "cost": 10,
+                "cost": 30,
                 "is_numerical": true
             }]
         },
@@ -43,7 +43,7 @@
             "word_freq_hp": [{
                 "pre": "(1, np.inf)",
                 "post": -1,
-                "cost": 10,
+                "cost": 30,
                 "is_numerical": true
             }]
         }
