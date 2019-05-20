@@ -1736,3 +1736,26 @@ class RobustForest(object):
 
 
 ##########################################################################
+
+def prune_trained_model(model_filename, n=10):
+    """
+    This function is used to load a trained model, prune it to the first n trees, and save it back again.
+    """
+    model = None
+    with open(model_filename, 'rb') as mf:
+        model = dill.load(mf)  # load the model
+        # prune the model iff the number of pruned trees is less than initially specified (to avoid inconsistencies)
+        if n <= model.n_estimators:
+            # prune the loaded model upto n estimators
+            model.estimators = model.estimators[:n]
+            model.n_estimators = n  # update the number of estimators of this model
+            # set this flag to True (useful only when the input model is a loaded from a temporary file)
+            model.is_trained = True
+            # extract the path of model filename
+            model_filename_path = '/'.join(model_filename.split('/')[:-1])
+            # extract the model root filename (no extension)
+            model_filename_root = model_filename.split('/')[-1].split('.')[0]
+            new_model_filename = model_filename_path + '/' + \
+                model_filename_root + '_{}.model'.format(n)
+
+            model.save(new_model_filename)
