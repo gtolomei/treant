@@ -13,8 +13,8 @@ import logging
 import json
 import numpy as np
 import pandas as pd
-import robust_forest as rf
-
+#import robust_forest as rf
+import parallel_robust_forest as rf
 
 def configure_logging(dataset_name):
     """
@@ -69,7 +69,7 @@ def get_options(cmd_args=None):
         default='standard',
         const='standard',
         nargs='?',
-        choices=['standard', 'reduced', 'adv-boosting', 'robust'],
+        choices=['standard', 'reduced', 'adv-boosting', 'robust', 'par-robust'],
         help="""List of possible models to train (default = standard).""")
     cmd_parser.add_argument(
         'n_estimators',
@@ -304,6 +304,21 @@ def loading_dataset(dataset_filename, sep=","):
 ##########################################################################
 
 
+def save(model, filename, num_trees):
+    """
+    This function is used to persist this RobustForest object to file on disk using dill.
+    """
+    with open(filename, 'wb') as model_file:
+        dill.dump(model, model_file)
+
+    out_df = pd.DataFrame(columns=[
+                          'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
+    out_df = out_df.append({'num_trees': num_trees, 'learning_rate': None, 
+                            'num_leaves': None, 'best_round': None,
+                            'metric': 0.0, 'filename': filename}, ignore_index=True)
+    out_df.to_csv(filename.split('_B')[0] + '.csv', index=False)  
+
+
 ############################ Main ########################################
 
 
@@ -379,28 +394,56 @@ def main(options):
     optimizer = rf.SplitOptimizer(
         split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'])
 
-    rdt = rf.RobustDecisionTree(0,
-                                attacker=attacker,
-                                split_optimizer=optimizer,
-                                max_depth=options['max_depth'],
-                                min_instances_per_node=options['instances_per_node'],
-                                max_samples=options['bootstrap_samples'] / 100.0,
-                                max_features=options['bootstrap_features'] / 100.0,
-                                feature_blacklist=feature_blacklist
-                                )
 
-    logger.info("==> Training \"{}\" random forest...".format(
-        options['model_type']))
-    # create the robust forest
-    rrf = rf.RobustForest(
-        0, base_estimator=rdt, n_estimators=options['n_estimators'])
-    rrf.fit(X_train, y=y_train,
-            dump_filename=options['output_dirname'] + '/' + partial_output_model_filename, dump_n_trees=10)
+    if options['model_type']=='robust':
+        logger.info("==> Training \"{}\" random forest...".format(
+            options['model_type']))
+        
+        # base robust tree
+        rdt = rf.RobustDecisionTree(0,
+                                    attacker=attacker,
+                                    split_optimizer=optimizer,
+                                    max_depth=options['max_depth'],
+                                    min_instances_per_node=options['instances_per_node'],
+                                    max_samples=options['bootstrap_samples'] / 100.0,
+                                    max_features=options['bootstrap_features'] / 100.0,
+                                    feature_blacklist=feature_blacklist
+                                    )
+                
+        # create the robust forest
+        rrf = rf.RobustForest(
+            0, base_estimator=rdt, n_estimators=options['n_estimators'])
+        rrf.fit(X_train, y=y_train,
+                dump_filename=options['output_dirname'] + '/' + partial_output_model_filename, dump_n_trees=10)
 
-    logger.info("==> Eventually, serialize the \"{}\" random forest just trained to {}".format(
-        options['model_type'], options['output_dirname'] + '/' + output_model_filename))
-    rrf.save(options['output_dirname'] + '/' + output_model_filename)
+        logger.info("==> Eventually, serialize the \"{}\" random forest just trained to {}".format(
+            options['model_type'], options['output_dirname'] + '/' + output_model_filename))
+        rrf.save(options['output_dirname'] + '/' + output_model_filename)
 
+    if options['model_type']=='par-robust':
+        from sklearn.ensemble import BaggingClassifier
+
+        # base robust tree
+        rdt = rf.RobustDecisionTree(0,
+                                    attacker=attacker,
+                                    split_optimizer=optimizer,
+                                    max_depth=options['max_depth'],
+                                    min_instances_per_node=options['instances_per_node'],
+                                    max_samples=options['bootstrap_samples'] / 100.0,
+                                    max_features=options['bootstrap_features'] / 100.0,
+                                    feature_blacklist=feature_blacklist
+                                    )
+
+        bagging = BaggingClassifier(base_estimator=rdt, 
+                                    n_estimators=options['n_estimators'], 
+                                    max_features=1.0, max_samples=1.0,
+                                    bootstrap=False, bootstrap_features=False, n_jobs=-1)
+        bagging.fit(X_train, y_train)
+        bagging.n_jobs = None
+        
+        save(bagging, options['output_dirname'] + '/' + output_model_filename, 
+             options['n_estimators'])
+        
 
 if __name__ == "__main__":
     sys.exit(main(get_options()))
