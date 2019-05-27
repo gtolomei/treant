@@ -13,6 +13,8 @@ import logging
 import json
 import numpy as np
 import pandas as pd
+import dill
+
 #import robust_forest as rf
 import parallel_robust_forest as rf
 
