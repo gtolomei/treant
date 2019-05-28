@@ -14,7 +14,7 @@ def label_encode(dataset, categorical_features):
 
 
 def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
-                              train_split=0.6, valid_split=0.2, force=True):
+                              train_split=0.6, valid_split=0.2, force=False):
 
     if (force or
         not os.path.exists(atk_train_file+".atks.bz2") or
