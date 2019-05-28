@@ -1400,6 +1400,10 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         # otherwise, take the minimum between the two numbers
         self.n_sample_instances = min(np.size(self.X, 0), int(
             self.max_samples * np.size(self.X, 0)))
+        
+        # set the number of classes
+        self.classes_   = np.unique(y, return_inverse=True)
+        self.n_classes_ = len(self.classes_)
 
         if self.max_features <= 0:  # proportion of features to be randomly sampled at each split
             self.max_features = 1.0
