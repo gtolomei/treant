@@ -9,18 +9,17 @@ def label_encode(dataset, categorical_features):
     for column in dataset_le.columns:
         if column in categorical_features:
             dataset_le[column] = dataset_le[column].astype('category')
-            dataset_le[column] = dataset_le[column].cat.codes.astype(np.int32)
+            #dataset_le[column] = dataset_le[column].cat.codes.astype(np.int32)
     return dataset_le
 
 
 def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
-                              train_split=0.6, valid_split=0.2, force=False):
+                              train_split=0.6, valid_split=0.2, force=True):
 
     if (force or
         not os.path.exists(atk_train_file+".atks.bz2") or
         not os.path.exists(atk_valid_file+".atks.bz2") or
-        not os.path.exists(atk_test_file+".atks.bz2") or
-            not os.path.exists(atk_train_file+".cat.json")):
+        not os.path.exists(atk_test_file+".atks.bz2")):
 
         print("Pre-processing original files...")
 
@@ -70,9 +69,8 @@ def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
         # get index of categorical features (-1 because of instance_id)
         cat_fx = full.columns.values[np.where(full.dtypes == 'object')[0]]
         cat_fx = list(cat_fx)
-        #full = label_encode(full, cat_fx)
-        with open(atk_train_file+".cat.json", 'w') as fp:
-            json.dump(cat_fx, fp)
+        full = label_encode(full, cat_fx)
+        
         print("CatFX:", cat_fx)
 
         train_cat = full.iloc[0:train_size, :]
@@ -91,25 +89,20 @@ def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
                       test_cat.shape[0] / (train_cat.shape[0]+valid_cat.shape[0]+test_cat.shape[0])))
 
         # save to file
-        print("Saving processed files *.cat.bz2")
-        train_cat.to_csv(atk_train_file+".atks.bz2",
-                         compression="bz2", index=False)
-        valid_cat.to_csv(atk_valid_file+".atks.bz2",
-                         compression="bz2", index=False)
-        test_cat.to_csv(atk_test_file+".atks.bz2",
-                        compression="bz2", index=False)
-
+        print ("Saving processed files *.atks.bz2")
+        train_cat.to_csv(atk_train_file+".atks.bz2", compression="bz2", index=False)
+        valid_cat.to_csv(atk_valid_file+".atks.bz2", compression="bz2", index=False)
+        test_cat.to_csv (atk_test_file+".atks.bz2",  compression="bz2", index=False)
+        
     else:
         print("Loading pre-processed files...")
 
         train_cat = pd.read_csv(atk_train_file+".atks.bz2")
         valid_cat = pd.read_csv(atk_valid_file+".atks.bz2")
-        test_cat = pd.read_csv(atk_test_file+".atks.bz2")
-        with open(atk_train_file+".cat.json", 'r') as fp:
-            cat_fx = json.load(fp)
+        test_cat  = pd.read_csv(atk_test_file+".atks.bz2")
 
     # return data
-    return train_cat, valid_cat, test_cat, cat_fx
+    return train_cat, valid_cat, test_cat
 
 
 # # Objective Functions
