@@ -333,7 +333,7 @@ def main(options):
 
     logger.info("==> Loading training, validation, and test set from {}, {}, and {}".format(
         options['training_set'], options['valid_set'], options['test_set']))
-    train, valid, test, cat_fx = load_atk_train_valid_test(
+    train, valid, test = load_atk_train_valid_test(
         options['training_set'], options['valid_set'], options['test_set'])
 
     logger.info(
