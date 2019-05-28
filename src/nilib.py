@@ -70,7 +70,7 @@ def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
         # get index of categorical features (-1 because of instance_id)
         cat_fx = full.columns.values[np.where(full.dtypes == 'object')[0]]
         cat_fx = list(cat_fx)
-        full = label_encode(full, cat_fx)
+        #full = label_encode(full, cat_fx)
         with open(atk_train_file+".cat.json", 'w') as fp:
             json.dump(cat_fx, fp)
         print("CatFX:", cat_fx)
@@ -91,17 +91,20 @@ def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
                       test_cat.shape[0] / (train_cat.shape[0]+valid_cat.shape[0]+test_cat.shape[0])))
 
         # save to file
-        print ("Saving processed files *.cat.bz2")
-        train_cat.to_csv(atk_train_file+".atks.bz2", compression="bz2", index=False)
-        valid_cat.to_csv(atk_valid_file+".atks.bz2", compression="bz2", index=False)
-        test_cat.to_csv (atk_test_file+".atks.bz2",  compression="bz2", index=False)
-        
+        print("Saving processed files *.cat.bz2")
+        train_cat.to_csv(atk_train_file+".atks.bz2",
+                         compression="bz2", index=False)
+        valid_cat.to_csv(atk_valid_file+".atks.bz2",
+                         compression="bz2", index=False)
+        test_cat.to_csv(atk_test_file+".atks.bz2",
+                        compression="bz2", index=False)
+
     else:
         print("Loading pre-processed files...")
 
         train_cat = pd.read_csv(atk_train_file+".atks.bz2")
         valid_cat = pd.read_csv(atk_valid_file+".atks.bz2")
-        test_cat  = pd.read_csv(atk_test_file+".atks.bz2")
+        test_cat = pd.read_csv(atk_test_file+".atks.bz2")
         with open(atk_train_file+".cat.json", 'r') as fp:
             cat_fx = json.load(fp)
 

@@ -14,9 +14,11 @@ import json
 import numpy as np
 import pandas as pd
 import dill
+from nilib import *
 
 #import robust_forest as rf
 import parallel_robust_forest as rf
+
 
 def configure_logging(dataset_name):
     """
@@ -71,7 +73,8 @@ def get_options(cmd_args=None):
         default='standard',
         const='standard',
         nargs='?',
-        choices=['standard', 'reduced', 'adv-boosting', 'robust', 'par-robust'],
+        choices=['standard', 'reduced',
+                 'adv-boosting', 'robust', 'par-robust'],
         help="""List of possible models to train (default = standard).""")
     cmd_parser.add_argument(
         'n_estimators',
@@ -315,10 +318,10 @@ def save(model, filename, num_trees):
 
     out_df = pd.DataFrame(columns=[
                           'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
-    out_df = out_df.append({'num_trees': num_trees, 'learning_rate': None, 
+    out_df = out_df.append({'num_trees': num_trees, 'learning_rate': None,
                             'num_leaves': None, 'best_round': None,
                             'metric': 0.0, 'filename': filename}, ignore_index=True)
-    out_df.to_csv(filename.split('_B')[0] + '.csv', index=False)  
+    out_df.to_csv(filename.split('_B')[0] + '.csv', index=False)
 
 
 ############################ Main ########################################
@@ -328,8 +331,10 @@ def main(options):
 
     logger = configure_logging(options['dataset_name'])
 
-    logger.info("==> Loading training set from " + options['training_set'])
-    train = loading_dataset(options['training_set'])
+    logger.info("==> Loading training, validation, and test set from {}, {}, and {}".format(
+        options['training_set'], options['valid_set'], options['test_set']))
+    train, valid, test, cat_fx = load_atk_train_valid_test(
+        options['training_set'], options['valid_set'], options['test_set'])
 
     logger.info(
         "- Shape of the training set: number of instances = {}; number of features = {} ({} is the label)".format(
@@ -337,17 +342,11 @@ def main(options):
             train.shape[1] - 1,
             train.shape[1]))
 
-    logger.info("==> Loading validation set from " + options['valid_set'])
-    valid = loading_dataset(options['valid_set'])
-
     logger.info(
         "- Shape of the validation set: number of instances = {}; number of features = {} ({} is the label)".format(
             valid.shape[0],
             valid.shape[1] - 1,
             valid.shape[1]))
-
-    logger.info("==> Loading test set from " + options['test_set'])
-    test = loading_dataset(options['test_set'])
 
     logger.info(
         "- Shape of the test set: number of instances = {}; number of features = {} ({} is the label)".format(
@@ -359,7 +358,8 @@ def main(options):
     # column names
     colnames = train.columns.tolist()
 
-    logger.info("==> Loading attack rules from {}".format(options['attack_rules_filename']))
+    logger.info("==> Loading attack rules from {}".format(
+        options['attack_rules_filename']))
     attack_rules = load_attack_rules(
         options['attack_rules_filename'], colnames)
     logger.info("==> Create the corresponding attacker...")
@@ -396,11 +396,10 @@ def main(options):
     optimizer = rf.SplitOptimizer(
         split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'])
 
-
-    if options['model_type']=='robust':
+    if options['model_type'] == 'robust':
         logger.info("==> Training \"{}\" random forest...".format(
             options['model_type']))
-        
+
         # base robust tree
         rdt = rf.RobustDecisionTree(0,
                                     attacker=attacker,
@@ -411,7 +410,7 @@ def main(options):
                                     max_features=options['bootstrap_features'] / 100.0,
                                     feature_blacklist=feature_blacklist
                                     )
-                
+
         # create the robust forest
         rrf = rf.RobustForest(
             0, base_estimator=rdt, n_estimators=options['n_estimators'])
@@ -422,7 +421,7 @@ def main(options):
             options['model_type'], options['output_dirname'] + '/' + output_model_filename))
         rrf.save(options['output_dirname'] + '/' + output_model_filename)
 
-    if options['model_type']=='par-robust':
+    if options['model_type'] == 'par-robust':
         from sklearn.ensemble import BaggingClassifier
 
         # base robust tree
@@ -436,16 +435,16 @@ def main(options):
                                     feature_blacklist=feature_blacklist
                                     )
 
-        bagging = BaggingClassifier(base_estimator=rdt, 
-                                    n_estimators=options['n_estimators'], 
+        bagging = BaggingClassifier(base_estimator=rdt,
+                                    n_estimators=options['n_estimators'],
                                     max_features=1.0, max_samples=1.0,
                                     bootstrap=False, bootstrap_features=False, n_jobs=-1)
         bagging.fit(X_train, y_train)
         bagging.n_jobs = None
-        
-        save(bagging, options['output_dirname'] + '/' + output_model_filename, 
+
+        save(bagging, options['output_dirname'] + '/' + output_model_filename,
              options['n_estimators'])
-        
+
 
 if __name__ == "__main__":
     sys.exit(main(get_options()))
