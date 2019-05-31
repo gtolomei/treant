@@ -443,7 +443,6 @@ class Node(object):
 
     def __init__(self,
                  node_id,
-                 rows,
                  values,
                  n_values,
                  left=None,
@@ -456,8 +455,7 @@ class Node(object):
 
         Args:
             node_id (int): node identifier.
-            rows (numpy.array): boolean mask used for indexing in the subset of the input data matrix located at this node.
-            values (numpy.array): values associated with the instances indexed by rows.
+            values (int): number of instances
             n_values (int): maximum number of unique y values.
             left (:obj:`Node`, optional): left child node. Defaults to None.
             right (:obj:`Node`, optional): left child node. Defaults to None.
@@ -466,7 +464,6 @@ class Node(object):
 
         """
         self.node_id = node_id
-        self.rows = rows
         self.values = values
         self.n_values = n_values
         self.left = left
@@ -476,20 +473,6 @@ class Node(object):
         self.prediction_score = None
         self.prediction = None
         self.loss_value = None
-
-        self.logger = logging.getLogger(__name__)
-
-    def __getstate__(self):
-        d = dict(self.__dict__)
-        del d['logger']
-        return d
-
-    def __setstate__(self, d):
-        if 'logger' in d:
-            d['logger'] = logging.getLogger(d['logger'])
-        else:
-            self.logger = logging.getLogger(__name__)
-        self.__dict__.update(d)
 
     def set_node_prediction(self, prediction_score, threshold=.5):
         self.prediction_score = prediction_score
@@ -523,12 +506,12 @@ class Node(object):
                                                                                                 0],
                                                                                             self.get_node_prediction()[
                                                                                                 1],
-                                                                                            self.values.shape[0],
+                                                                                            self.values,
                                                                                             self.loss_value)
         internal_node_txt = "{}Feature ID: {}; Threshold: {}; N. instances: {}".format(tabs,
                                                                                        self.best_split_feature_id,
                                                                                        self.best_split_feature_value,
-                                                                                       self.values.shape[0]
+                                                                                       self.values
                                                                                        )
 
         if self.is_leaf():  # base case
@@ -1167,7 +1150,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             "*****************************************************")
 
     def __getstate__(self):
-        return dict((k, v) for (k, v) in self.__dict__.items() if k != 'logger')
+        return dict((k, v) for (k, v) in self.__dict__.items() if k not in ['logger'])
 
     def __setstate__(self, d):
         if 'logger' in d:
@@ -1218,7 +1201,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         self.logger.debug("Create node ID: [{}]".format(
             "->".join([str(n_id) for n_id in node_id])))
 
-        node = Node(node_id, rows, y, self.y_n_uniques)
+        node = Node(node_id, len(y), self.y_n_uniques)
         # set current node prediction
         node.set_node_prediction(node_prediction)
 
@@ -1400,7 +1383,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.max_samples * np.size(X, 0)))
 
         # set the number of classes
-        self.classes_ = np.unique(y, return_inverse=True)
+        self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
 
         if self.max_features <= 0:  # proportion of features to be randomly sampled at each split
@@ -1440,9 +1423,16 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.is_trained = True
             self.logger.info('Fitting Tree ID {} completed (is_trained = {})! [process ID: {}]'
                              .format(self.tree_id, self.is_trained, os.getpid()))
+        
+        # Clean
+        self.clean_after_training()
 
         return self
 
+    def clean_after_training(self):
+        self.attacker = None
+        self.split_optimizer = None
+        
     def __predict(self, x, node):
         """
         This function provides the prediction for a single instance x.
@@ -1555,6 +1545,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         """
         This function is used to persist this RobustDecisionTree object to file on disk using dill.
         """
+        # this is never used by the scikilearn bagging forest
         with open(filename, 'wb') as model_file:
             dill.dump(self, model_file)
 

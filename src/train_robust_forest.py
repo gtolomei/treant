@@ -440,8 +440,11 @@ def main(options):
                                     max_features=1.0, max_samples=1.0,
                                     bootstrap=False, bootstrap_features=False, n_jobs=-1)
         bagging.fit(X_train, y_train)
+        # do some cleaning and prepare to evaluation
+        
         bagging.n_jobs = None
-
+        bagging.base_estimator_.clean_after_training()
+        
         save(bagging, options['output_dirname'] + '/' + output_model_filename,
              options['n_estimators'])
 
