@@ -174,8 +174,6 @@ class Attacker:
     def __getstate__(self):
         d = dict(self.__dict__)
         del d['logger']
-        if 'X' in d:
-            del d['X']
         return d
 
     def __setstate__(self, d):
@@ -217,7 +215,7 @@ class Attacker:
                     "Unable to load attacks to the dataset from file using dill: {}\nException: {}".format(attacks_filename, dill_ex))
                 self.logger.info(
                     "Eventually, recompute the attacks from scratch and store them to: {}".format(attacks_filename))
-                self.__compute_attacks(attacks_filename)
+                self.__compute_attacks(X, attacks_filename)
 
     def attack(self, x, feature_id, cost):
         """
@@ -339,6 +337,10 @@ class Constraint(object):
     def __getstate__(self):
         d = dict(self.__dict__)
         del d['logger']
+        if 'x' in d:
+            del d['x']
+        if 'y' in d:
+            del d['y']
         return d
 
     def __setstate__(self, d):
@@ -1133,7 +1135,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         self.feature_blacklist = feature_blacklist
         self.feature_blacklist_ids = set(list(feature_blacklist.keys()))
         self.feature_blacklist_names = set(list(feature_blacklist.values()))
-        self.is_affine = self.attacker.is_filled()
+        self.is_affine = True  # self.attacker.is_filled()
         self.seed = seed
 
         np.random.seed(self.seed)
@@ -1165,9 +1167,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             "*****************************************************")
 
     def __getstate__(self):
-        d = dict(self.__dict__)
-        del d['logger']
-        return d
+        return dict((k, v) for (k, v) in self.__dict__.items() if k != 'logger')
 
     def __setstate__(self, d):
         if 'logger' in d:
@@ -1336,7 +1336,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                     [best_split_feature_id])
 
             # assign to the left node of the current node the result of the recursive call on the left branch
-            node.left = self.__fit(best_split_left_id,
+            node.left = self.__fit(X_train, y_train, best_split_left_id,
                                    attacker,
                                    costs_left,
                                    best_pred_left,  # assign left prediction to node's left child
@@ -1356,7 +1356,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.logger.info("Number of right rows: {}".format(
                 len(best_split_right_id)))
             # assign to the right node of the current node the result of the recursive call on the right branch
-            node.right = self.__fit(best_split_right_id,
+            node.right = self.__fit(X_train, y_train, best_split_right_id,
                                     attacker,
                                     costs_right,
                                     best_pred_right,  # assign right prediction to node's right child
