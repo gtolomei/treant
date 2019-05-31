@@ -200,13 +200,12 @@ class Attacker:
         It either loads all the attacks from the attack file provided as input
         or it computes all the attacks from scratch.
         """
-        self.X = X  # bind the attacked dataset to this attacker
         # infer index of numerical features
-        self.numerical_idx = self.__infer_numerical_features()
+        self.numerical_idx = self.__infer_numerical_features(X)
 
         if attacks_filename is None:  # check if the attack filename is None
             # if that is the case, just compute all the attacks from scratch
-            self.__compute_attacks(attacks_filename)
+            self.__compute_attacks(X, attacks_filename)
         else:  # otherwise, try to load the attacks from the input file
             self.logger.info(
                 "Loading attacks to the dataset from file: {}".format(attacks_filename))
@@ -243,26 +242,25 @@ class Attacker:
 
 ################################################### PRIVATE FUNCTIONS ###################################################
 
-    def __infer_numerical_features(self, numerics=['integer', 'floating']):
-        if self.X is not None:
+    def __infer_numerical_features(self, X, numerics=['integer', 'floating']):
+        if X is not None:
             def infer_type(x): return pd.api.types.infer_dtype(x, skipna=True)
-            X_types = list(np.apply_along_axis(infer_type, 0, self.X))
+            X_types = list(np.apply_along_axis(infer_type, 0, X))
             return np.isin(X_types, numerics).tolist()
 
     def __is_equal_perturbation(self, a, b):
         return np.array_equal(a[0], b[0]) and a[1] <= b[1]
 
-    def __compute_attacks(self, attacks_filename):
+    def __compute_attacks(self, X, attacks_filename):
         """
         Return all the attacks of all the instances of the original dataset X, assuming starting cost is 0.
         """
         self.logger.info(
             "Compute all the attacks to the dataset from scratch...")
-        for i in range(self.X.shape[0]):
-            for j in range(self.X.shape[1]):
-                key = (tuple(self.X[i, :].tolist()), j)
-                self.attacks[key] = self.__compute_attack(
-                    self.X[i, :], j, 0)
+        for i in range(X.shape[0]):
+            for j in range(X.shape[1]):
+                key = (tuple(X[i, :].tolist()), j)
+                self.attacks[key] = self.__compute_attack(X[i, :], j, 0)
 
         self.logger.info(
             "Finally, store all the attacks to file: {}".format(attacks_filename))
@@ -1178,19 +1176,21 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
-    def __infer_numerical_features(self, numerics=['integer', 'floating']):
-        if self.X is not None:
+    def __infer_numerical_features(self, X, numerics=['integer', 'floating']):
+        if X is not None:
             def infer_type(x): return pd.api.types.infer_dtype(x, skipna=True)
-            X_types = np.apply_along_axis(infer_type, 0, self.X)
+            X_types = np.apply_along_axis(infer_type, 0, X)
             return np.isin(X_types, numerics).tolist()
 
-    def __fit(self, rows, attacker, costs, node_prediction,
+    def __fit(self, X_train, y_train, rows, attacker, costs, node_prediction,
               feature_blacklist, n_sample_features, replace_features,
               constraints=[], node_id=[-1], depth=0):
         """
         This function is a private method used to actually train a single Robust Decision Tree on (a slice of) the input data matrix X indexed by rows.
 
         Args:
+            X_train
+            y_train
             rows (numpy.array): boolean mask used for indexing in the subset of the input data matrix.
             attacker (:obj:`Attacker`): an attacker object.
             costs (dict): cost associated with each instance (indexed by rows).
@@ -1203,14 +1203,14 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         """
 
         # base case 1: if X doesn't contain any record at all, just return None
-        if np.size(self.X, 0) == 0:
+        if np.size(X_train, 0) == 0:
             self.logger.info("No more data available")
             return None
 
         # get the current subset of rows indexed
-        X = self.X[rows, :]
+        X = X_train[rows, :]
         # get the corresponding subset of labels/targets indexed
-        y = self.y[rows]
+        y = y_train[rows]
         self.logger.debug("Input data shape X = ({} x {})".format(
             X.shape[0], X.shape[1]))
         self.logger.debug("Input target shape y = ({}, )".format(y.shape[0]))
@@ -1265,8 +1265,8 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             constraints_left, \
             constraints_right, \
             costs_left, \
-            costs_right = self.split_optimizer.optimize_gain(self.X,
-                                                             self.y,
+            costs_right = self.split_optimizer.optimize_gain(X_train,
+                                                             y_train,
                                                              rows,
                                                              self.numerical_idx,
                                                              feature_blacklist,
@@ -1388,32 +1388,30 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
 
         self.logger.info('Fitting Tree ID {}...  [process ID: {}]'.format(
             self.tree_id, os.getpid()))
-        self.X = X  # store the 2-dimensional input data matrix
-        self.y = y  # store the 1-dimensional input labels/targets
 
         # infer the index of numerical features
-        self.numerical_idx = self.__infer_numerical_features()
+        self.numerical_idx = self.__infer_numerical_features(X)
 
         if self.max_samples <= 0:
             self.max_samples = 1.0
 
         # otherwise, take the minimum between the two numbers
-        self.n_sample_instances = min(np.size(self.X, 0), int(
-            self.max_samples * np.size(self.X, 0)))
-        
+        self.n_sample_instances = min(np.size(X, 0), int(
+            self.max_samples * np.size(X, 0)))
+
         # set the number of classes
-        self.classes_   = np.unique(y, return_inverse=True)
+        self.classes_ = np.unique(y, return_inverse=True)
         self.n_classes_ = len(self.classes_)
 
         if self.max_features <= 0:  # proportion of features to be randomly sampled at each split
             self.max_features = 1.0
 
         # otherwise, take the minimum between the two numbers
-        self.n_sample_features = min(np.size(self.X, 1), int(
-            self.max_features * np.size(self.X, 1)))
+        self.n_sample_features = min(np.size(X, 1), int(
+            self.max_features * np.size(X, 1)))
 
         # get the number of unique y values
-        self.y_n_uniques = np.unique(self.y).size
+        self.y_n_uniques = np.unique(y).size
         self.logger.info("Successfully loaded input data X = ({} x {}) and y values = ({}, )".format(
             X.shape[0], X.shape[1], y.shape[0]))
 
@@ -1421,14 +1419,14 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         if self.bootstrap_samples:
             # randomly select rows (i.e., instances)
             self.logger.info("Randomly sample (with replacement) {:.1f}% of the total number of instances ({}) = {}".
-                             format(self.max_samples * 100, np.size(self.X, 0), self.n_sample_instances))
-            rows = sorted(np.random.choice(range(np.size(self.X, 0)),
+                             format(self.max_samples * 100, np.size(X, 0), self.n_sample_instances))
+            rows = sorted(np.random.choice(range(np.size(X, 0)),
                                            size=self.n_sample_instances, replace=self.replace_samples))
         else:  # otherwise (i.e., this will be a single tree of the ensemble)
             rows = [x for x in range(np.size(X, 0))]
 
         # assign to the internal root reference the result of self.__fit on the whole input data matrix X
-        self.root = self.__fit(rows,
+        self.root = self.__fit(X, y, rows,
                                self.attacker,
                                dict(
                                    zip([x for x in range(np.size(X, 0))], np.zeros(X.shape[0]))),
