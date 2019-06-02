@@ -90,16 +90,16 @@ def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
 
         # save to file
         print ("Saving processed files *.atks.bz2")
-        train_cat.to_csv(atk_train_file+".atks.bz2", compression="bz2", index=False)
-        valid_cat.to_csv(atk_valid_file+".atks.bz2", compression="bz2", index=False)
-        test_cat.to_csv (atk_test_file+".atks.bz2",  compression="bz2", index=False)
+        train_cat.to_pickle(atk_train_file+".atks.bz2", compression="bz2") #, index=False)
+        valid_cat.to_pickle(atk_valid_file+".atks.bz2", compression="bz2") #, index=False)
+        test_cat.to_pickle (atk_test_file+".atks.bz2",  compression="bz2") #, index=False)
         
     else:
         print("Loading pre-processed files...")
 
-        train_cat = pd.read_csv(atk_train_file+".atks.bz2")
-        valid_cat = pd.read_csv(atk_valid_file+".atks.bz2")
-        test_cat  = pd.read_csv(atk_test_file+".atks.bz2")
+        train_cat = pd.read_pickle(atk_train_file+".atks.bz2")
+        valid_cat = pd.read_pickle(atk_valid_file+".atks.bz2")
+        test_cat  = pd.read_pickle(atk_test_file+".atks.bz2")
 
     # return data
     return train_cat, valid_cat, test_cat
