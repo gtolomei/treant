@@ -1,7 +1,7 @@
 {
     "attacks": [{
             "alcohol": [{
-                "pre": "(0, 10)",
+                "pre": "(0, 10.0)",
                 "post": 0.75,
                 "cost": 10,
                 "is_numerical": true

@@ -110,6 +110,12 @@ class AttackerRule:
         """
         return self.post_condition[0]
 
+    def get_pre_interval(self):
+        if self.is_numerical:
+            return self.pre_conditions[1]
+        else:
+            return None
+    
     def is_num(self):
         return self.is_numerical
     
@@ -128,7 +134,7 @@ class AttackerRule:
         feature_id  = self.pre_conditions[0]
         if self.is_numerical:  # the feature is numeric
             left, right = self.pre_conditions[1]
-            return left < x[feature_id] < right
+            return left <= x[feature_id] <= right
         else:  # the feature is categorical
             valid_set = self.pre_conditions[1]
             return x[feature_id] in valid_set
@@ -330,6 +336,22 @@ class Attacker:
                     if not any(atk for atk in attacks if self.__is_equal_perturbation(atk, (x_prime, cost_prime))):
                         # insert such a new instance in the queue with its updated cost
                         queue.insert(0, (x_prime, cost_prime))
+                    
+                    # if numerical check extremes !
+                    if r.is_num():
+                        # Evaluate extremes of validity interval
+                        f = r.get_target_feature()
+                        low,high=sorted([x[f], x_prime[f]])
+                        extremes = r.get_pre_interval()
+                        z = set([t for t in extremes if low < t < high])
+                        # apply modifications
+                        for zi in z:
+                            x_prime = x.copy()
+                            x_prime[f] = zi
+                            if not any(atk for atk in attacks if self.__is_equal_perturbation(atk, (x_prime, cost_prime))):
+                                # insert such a new instance in the queue with its updated cost
+                                queue.insert(0, (x_prime, cost_prime))
+
         # eventually, return all the (unique) attacks generated
         return attacks
 
