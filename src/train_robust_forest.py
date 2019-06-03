@@ -232,34 +232,7 @@ def is_strictly_positive(value):
             "{} is an invalid value for the input argument which must be any x, such that x > 0".format(ivalue))
     return ivalue
 
-###########################################################################
 
-
-def load_attack_rules(attack_rules_filename, colnames):
-
-    attack_rules = []
-
-    with open(attack_rules_filename) as json_file:
-        json_data = json.load(json_file)
-        json_attacks = json_data["attacks"]
-        for attack in json_attacks:
-            for feature in attack:
-                feature_atk_list = attack[feature]
-                for feature_atk in feature_atk_list:
-                    pre = feature_atk["pre"]
-                    post = feature_atk["post"]
-                    cost = feature_atk["cost"]
-                    is_numerical = feature_atk["is_numerical"]
-                    attack_rules.append(
-                        rf.AttackerRule(
-                            {colnames.index(feature): (eval(pre))},
-                            {colnames.index(feature): post},
-                            cost=cost,
-                            is_numerical=is_numerical
-                        )
-                    )
-
-    return attack_rules
 
 ##########################################################################
 
@@ -367,7 +340,7 @@ def main(options):
 
     logger.info("==> Loading attack rules from {}".format(
         options['attack_rules_filename']))
-    attack_rules = load_attack_rules(
+    attack_rules = rf.load_attack_rules(
         options['attack_rules_filename'], colnames)
     logger.info("==> Create the corresponding attacker...")
     attacker = rf.Attacker(

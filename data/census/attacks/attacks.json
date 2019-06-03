@@ -1,7 +1,7 @@
 {
     "attacks": [{
             "workclass": [{
-                "pre": "('Never-worked', 'Never-worked')",
+                "pre": "('Never-worked')",
                 "post": "Without-pay",
                 "cost": 1,
                 "is_numerical": false
@@ -9,100 +9,19 @@
         },
         {
             "marital_status": [{
-                    "pre": "('Divorced', 'Divorced')",
-                    "post": "Never-married",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Separated', 'Separated')",
-                    "post": "Never-married",
-                    "cost": 1,
-                    "is_numerical": false
-                }
-
-            ]
+                "pre": "('Divorced', 'Separated')",
+                "post": "Never-married",
+                "cost": 1,
+                "is_numerical": false
+            }]
         },
         {
             "occupation": [{
-                    "pre": "('Craft-repair', 'Craft-repair')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Prof-specialty', 'Prof-specialty')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Exec-managerial', 'Exec-managerial')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Adm-clerical', 'Adm-clerical')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Sales', 'Sales')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Machine-op-inspct', 'Machine-op-inspct')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Transport-moving', 'Transport-moving')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Handlers-cleaners', 'Handlers-cleaners')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Farming-fishing', 'Farming-fishing')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Tech-support', 'Tech-support')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Protective-serv', 'Protective-serv')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Priv-house-serv', 'Priv-house-serv')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                },
-                {
-                    "pre": "('Armed-Forces', 'Armed-Forces')",
-                    "post": "Other-service",
-                    "cost": 1,
-                    "is_numerical": false
-                }
-            ]
+                "pre": "('Craft-repair', 'Prof-specialty', 'Exec-managerial', 'Adm-clerical', 'Sales', 'Machine-op-inspct', 'Transport-moving', 'Handlers-cleaners', 'Farming-fishing', 'Tech-support', 'Protective-serv', 'Priv-house-serv', 'Armed-Forces')",
+                "post": "Other-service",
+                "cost": 1,
+                "is_numerical": false
+            }]
         },
         {
             "education_num": [{

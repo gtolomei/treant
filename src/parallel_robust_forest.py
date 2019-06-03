@@ -10,6 +10,7 @@ import sys
 import os
 import logging
 import dill
+import json
 import numpy as np
 import pandas as pd
 import multiprocessing as mp
@@ -76,6 +77,12 @@ class AttackerRule:
         self.post_condition = post_condition
         self.cost = cost
         self.is_numerical = is_numerical
+        if (not self.is_numerical):
+            if type(self.pre_conditions[1])==str:
+                # fix single element
+                self.pre_conditions = ( self.pre_conditions[0], set( (self.pre_conditions[1],) ) )
+            else:
+                self.pre_conditions = ( self.pre_conditions[0], set(self.pre_conditions[1]) )
 
         self.logger = logging.getLogger(__name__)
 
@@ -101,9 +108,12 @@ class AttackerRule:
         """
         Return the feature (id) targeted by this rule.
         """
-        return list(self.post_condition.keys())[0]
+        return self.post_condition[0]
 
-    def is_applicable(self, x, numerical_idx):
+    def is_num(self):
+        return self.is_numerical
+    
+    def is_applicable(self, x):
         """
         Returns whether the rule can be applied to the input instance x or not.
 
@@ -115,18 +125,13 @@ class AttackerRule:
         Return:
             True iff this rule is applicable to x (i.e., if x satisfies ALL the pre-conditions of this rule).
         """
-        for feature_id in self.pre_conditions:
-            left, right = self.pre_conditions[feature_id]
-            # if isinstance(x[feature_id], int) or isinstance(x[feature_id], float):
-            if numerical_idx[feature_id]:  # the feature is numeric
-                if x[feature_id] < left or x[feature_id] > right:
-                    return False
-            else:  # the feature is categorical
-                # right is useless for categorical features as it is the same as left
-                if x[feature_id] != left:
-                    return False
-
-        return True
+        feature_id  = self.pre_conditions[0]
+        if self.is_numerical:  # the feature is numeric
+            left, right = self.pre_conditions[1]
+            return left < x[feature_id] < right
+        else:  # the feature is categorical
+            valid_set = self.pre_conditions[1]
+            return x[feature_id] in valid_set
 
     def apply(self, x):
         """
@@ -138,18 +143,44 @@ class AttackerRule:
         Return:
             x_prime (numpy.array): A (deep) copy of x yet modified according to the post-condition of this rule.
         """
-        feature_id, feature_attack = list(self.post_condition.items())[0]
-        x_prime = np.copy(x)
+        x_prime = x.copy()
+        feature_id, feature_attack = self.post_condition
         if self.is_numerical:
             x_prime[feature_id] += feature_attack
         else:
             x_prime[feature_id] = feature_attack
         return x_prime
 
-
 # <code>Attacker</code>
 #
 # This class represents an **attacker**. Informally, this is made of a **set of rules** (i.e., <code>AttackerRule</code>s) and a **budget** which it can spend on modifying instances.
+
+
+def load_attack_rules(attack_rules_filename, colnames):
+
+    attack_rules = []
+
+    with open(attack_rules_filename) as json_file:
+        json_data = json.load(json_file)
+        json_attacks = json_data["attacks"]
+        for attack in json_attacks:
+            for feature in attack:
+                feature_atk_list = attack[feature]
+                for feature_atk in feature_atk_list:
+                    pre = feature_atk["pre"]
+                    post = feature_atk["post"]
+                    cost = feature_atk["cost"]
+                    is_numerical = feature_atk["is_numerical"]
+                    attack_rules.append(
+                        AttackerRule(
+                            ( colnames.index(feature), eval(pre) ),
+                            ( colnames.index(feature), post),
+                            cost=cost,
+                            is_numerical=is_numerical
+                        )
+                    )
+
+    return attack_rules
 
 
 class Attacker:
@@ -288,8 +319,7 @@ class Attacker:
             applicables = [
                 r for r in self.rules if r.get_target_feature() == feature_id]
             # extract the list of applicable rules out of the set of all rules
-            applicables = [r for r in applicables if r.is_applicable(
-                x, self.numerical_idx)]
+            applicables = [r for r in applicables if r.is_applicable(x)]
 
             for r in applicables:  # for each applicable rule
                 # check if the current budget of the attacker is large enough to apply the rule
