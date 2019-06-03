@@ -1369,6 +1369,8 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             y (numpy.array): 1-dimensional array of values of shape (n_samples, )
         """
 
+        np.random.seed()
+        
         self.logger.info('Fitting Tree ID {}...  [process ID: {}]'.format(
             self.tree_id, os.getpid()))
 
