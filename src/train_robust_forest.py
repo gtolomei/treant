@@ -148,6 +148,12 @@ def get_options(cmd_args=None):
         help="""Path to the file with attack rules.""",
         type=str,
         default='./data/attacks/attacks.json')
+    cmd_parser.add_argument(
+        '-j',
+        '--jobs',
+        help="""Parallelism degree.""",
+        type=int,
+        default=-1)
 
     args = cmd_parser.parse_args(cmd_args)
 
@@ -169,6 +175,7 @@ def get_options(cmd_args=None):
     options['attacker_budget'] = args.attacker_budget
     options['attacks_filename'] = args.attacks_filename
     options['attack_rules_filename'] = args.attack_rules_filename
+    options['jobs'] = args.jobs
 
     return options
 
@@ -438,7 +445,8 @@ def main(options):
         bagging = BaggingClassifier(base_estimator=rdt,
                                     n_estimators=options['n_estimators'],
                                     max_features=1.0, max_samples=1.0,
-                                    bootstrap=False, bootstrap_features=False, n_jobs=-1)
+                                    bootstrap=False, bootstrap_features=False, 
+                                    n_jobs=options['jobs'])
         bagging.fit(X_train, y_train)
         # do some cleaning and prepare to evaluation
         
