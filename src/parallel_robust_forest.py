@@ -52,7 +52,11 @@ EPSILON = 1e-10
 SEED = np.random.seed(73)
 
 
+def unwrap_self(arg, **kwarg):
+    return RobustDecisionTree._RobustDecisionTree__predict(*arg, **kwarg)
+
 # <code>Attacker Rule</code>
+
 
 class AttackerRule:
     """
@@ -1552,9 +1556,12 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         if self.is_trained:
 
             # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
-            predictions = np.asarray(Parallel(n_jobs=1, verbose=1, batch_size=100)(delayed(self.__predict)
-                                                                                   (x=X[i, :], node=self.root)
-                                                                                   for i in range(X.shape[0])))
+            # predictions = np.asarray(Parallel(n_jobs=-1, verbose=1, batch_size=100, backend="threading")(delayed(self.__predict)
+            #                                                                        (x=X[i, :], node=self.root)
+            #                                                                        for i in range(X.shape[0])))
+
+            predictions = np.asarray(Parallel(n_jobs=-1, verbose=1, batch_size=100, backend="threading")(delayed(unwrap_self)(
+                z) for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
             # Extract the first element of each tuple (i.e., the actual prediction)
             predictions = predictions[:, 0]
 
@@ -1590,9 +1597,12 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         # Check if the current tree is trained
         if self.is_trained:
             # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
-            probs_1 = np.asarray(Parallel(n_jobs=1, verbose=1, batch_size=100)(delayed(self.__predict)
-                                                                               (x=X[i, :], node=self.root)
-                                                                               for i in range(X.shape[0])))
+            # probs_1 = np.asarray(Parallel(n_jobs=-1, verbose=1, batch_size=100, backend="threading")(delayed(self.__predict)
+            #                                                                    (x=X[i, :], node=self.root)
+            #                                                                    for i in range(X.shape[0])))
+
+            probs_1 = np.asarray(Parallel(n_jobs=-1, verbose=1, batch_size=100, backend="threading")(delayed(unwrap_self)(z)
+                                                                                                     for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
 
             # Extract the second element of each tuple (i.e., the probability score)
             probs_1 = probs_1[:, 1]
@@ -1795,7 +1805,7 @@ class RobustForest(object):
             dill.dump(self, model_file)
 
         out_df = pd.DataFrame(columns=[
-                              'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
+            'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
         out_df = out_df.append({'num_trees': self.n_estimators, 'learning_rate': None, 'num_leaves': None, 'best_round': None,
                                 'metric': 0.0, 'filename': filename}, ignore_index=True)
         out_df.to_csv(filename.split('_B')[0] + '.csv', index=False)
