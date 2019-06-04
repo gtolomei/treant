@@ -13,7 +13,6 @@ import dill
 import json
 import numpy as np
 import pandas as pd
-import multiprocessing as mp
 from copy import deepcopy
 from scipy import stats
 from scipy.optimize import minimize
@@ -1553,11 +1552,11 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         if self.is_trained:
 
             # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
-            predictions = Parallel(n_jobs=mp.cpu_count())(delayed(self.__predict)
-                                                          (x=X[i, :], node=self.root)
-                                                          for i in range(X.shape[0]))
+            predictions = np.asarray(Parallel(n_jobs=1, verbose=1, batch_size=100)(delayed(self.__predict)
+                                                                                   (x=X[i, :], node=self.root)
+                                                                                   for i in range(X.shape[0])))
             # Extract the first element of each tuple (i.e., the actual prediction)
-            predictions = np.array([p[0] for p in predictions])
+            predictions = predictions[:, 0]
 
             # Loop through each individual instance
             # for i in range(np.size(X, 0)):
@@ -1590,14 +1589,13 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
 
         # Check if the current tree is trained
         if self.is_trained:
-
             # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
-            probs_1 = Parallel(n_jobs=mp.cpu_count())(delayed(self.__predict)
-                                                      (x=X[i, :], node=self.root)
-                                                      for i in range(X.shape[0]))
+            probs_1 = np.asarray(Parallel(n_jobs=1, verbose=1, batch_size=100)(delayed(self.__predict)
+                                                                               (x=X[i, :], node=self.root)
+                                                                               for i in range(X.shape[0])))
 
             # Extract the second element of each tuple (i.e., the probability score)
-            probs_1 = np.array([p[1] for p in probs_1])
+            probs_1 = probs_1[:, 1]
             # Get the dual prediction scores
             probs_0 = (1 - probs_1)
 
