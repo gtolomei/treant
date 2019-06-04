@@ -18,7 +18,7 @@ from copy import deepcopy
 from scipy import stats
 from scipy.optimize import minimize
 from sklearn.base import BaseEstimator, ClassifierMixin
-from pathos.multiprocessing import ProcessingPool
+from joblib import Parallel, delayed
 
 
 """
@@ -78,11 +78,13 @@ class AttackerRule:
         self.cost = cost
         self.is_numerical = is_numerical
         if (not self.is_numerical):
-            if type(self.pre_conditions[1])==str:
+            if type(self.pre_conditions[1]) == str:
                 # fix single element
-                self.pre_conditions = ( self.pre_conditions[0], set( (self.pre_conditions[1],) ) )
+                self.pre_conditions = (
+                    self.pre_conditions[0], set((self.pre_conditions[1],)))
             else:
-                self.pre_conditions = ( self.pre_conditions[0], set(self.pre_conditions[1]) )
+                self.pre_conditions = (
+                    self.pre_conditions[0], set(self.pre_conditions[1]))
 
         self.logger = logging.getLogger(__name__)
 
@@ -115,10 +117,10 @@ class AttackerRule:
             return self.pre_conditions[1]
         else:
             return None
-    
+
     def is_num(self):
         return self.is_numerical
-    
+
     def is_applicable(self, x):
         """
         Returns whether the rule can be applied to the input instance x or not.
@@ -131,7 +133,7 @@ class AttackerRule:
         Return:
             True iff this rule is applicable to x (i.e., if x satisfies ALL the pre-conditions of this rule).
         """
-        feature_id  = self.pre_conditions[0]
+        feature_id = self.pre_conditions[0]
         if self.is_numerical:  # the feature is numeric
             left, right = self.pre_conditions[1]
             return left <= x[feature_id] <= right
@@ -179,8 +181,8 @@ def load_attack_rules(attack_rules_filename, colnames):
                     is_numerical = feature_atk["is_numerical"]
                     attack_rules.append(
                         AttackerRule(
-                            ( colnames.index(feature), eval(pre) ),
-                            ( colnames.index(feature), post),
+                            (colnames.index(feature), eval(pre)),
+                            (colnames.index(feature), post),
                             cost=cost,
                             is_numerical=is_numerical
                         )
@@ -336,12 +338,12 @@ class Attacker:
                     if not any(atk for atk in attacks if self.__is_equal_perturbation(atk, (x_prime, cost_prime))):
                         # insert such a new instance in the queue with its updated cost
                         queue.insert(0, (x_prime, cost_prime))
-                    
+
                     # if numerical check extremes !
                     if r.is_num():
                         # Evaluate extremes of validity interval
                         f = r.get_target_feature()
-                        low,high=sorted([x[f], x_prime[f]])
+                        low, high = sorted([x[f], x_prime[f]])
                         extremes = r.get_pre_interval()
                         z = set([t for t in extremes if low < t < high])
                         # apply modifications
@@ -1422,7 +1424,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         """
 
         np.random.seed()
-        
+
         self.logger.info('Fitting Tree ID {}...  [process ID: {}]'.format(
             self.tree_id, os.getpid()))
 
@@ -1477,7 +1479,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.is_trained = True
             self.logger.info('Fitting Tree ID {} completed (is_trained = {})! [process ID: {}]'
                              .format(self.tree_id, self.is_trained, os.getpid()))
-        
+
         # Clean
         self.clean_after_training()
 
@@ -1486,7 +1488,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
     def clean_after_training(self):
         self.attacker = None
         self.split_optimizer = None
-        
+
     def __predict(self, x, node):
         """
         This function provides the prediction for a single instance x.
@@ -1545,19 +1547,27 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         """
 
         # prepare the array of predictions
-        predictions = np.empty(np.size(X, 0))
+        predictions = np.empty(X.shape[0])
 
         # Check if the current tree is trained
         if self.is_trained:
+
+            # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
+            predictions = Parallel(n_jobs=mp.cpu_count())(delayed(self.__predict)
+                                                          (x=X[i, :], node=self.root)
+                                                          for i in range(X.shape[0]))
+            # Extract the first element of each tuple (i.e., the actual prediction)
+            predictions = np.array([p[0] for p in predictions])
+
             # Loop through each individual instance
-            for i in range(np.size(X, 0)):
-                self.logger.debug(
-                    "Computing prediction for instance #{}".format(i))
-                # compute the prediction for the i-th instance
-                predictions[i] = self.__predict(X[i, :], self.root)[0]
-                # (i.e., a one-dimensional array corresponding to the i-th row)
-                self.logger.debug(
-                    "Prediction for instance #{} = {}".format(i, predictions[i]))
+            # for i in range(np.size(X, 0)):
+            #     self.logger.debug(
+            #         "Computing prediction for instance #{}".format(i))
+            #     # compute the prediction for the i-th instance
+            #     predictions[i] = self.__predict(X[i, :], self.root)[0]
+            #     # (i.e., a one-dimensional array corresponding to the i-th row)
+            #     self.logger.debug(
+            #         "Prediction for instance #{} = {}".format(i, predictions[i]))
         # Finally, return predictions
         return predictions
 
@@ -1572,28 +1582,41 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                              samples which we want to know the predictions of.
 
         Returns:
-            predictions (numpy.array): 1-dimensional array of shape (n_test_samples, ).
+            probs (numpy.array): 2-dimensional array of shape (n_test_samples, 2) containing probability scores both for class 0 (1st column) and class 1 (2nd column).
         """
-        probs = np.empty(np.size(X, 0))
-        proba = np.empty(np.size(X, 0))
-        bbc = []
+        probs_0 = np.empty(X.shape[0])
+        probs_1 = np.empty(X.shape[0])
+        # bbc = []
 
         # Check if the current tree is trained
         if self.is_trained:
-            # Loop through each individual instance
-            for i in range(np.size(X, 0)):
-                self.logger.debug(
-                    "Computing prediction for instance #{}".format(i))
-                # compute the prediction probability for the i-th instance
-                probs[i] = self.__predict(X[i, :], self.root)[1]
-                # (i.e., a one-dimensional array corresponding to the i-th row)
-                proba[i] = (1 - probs[i])
-                bbc.append([proba[i], probs[i]])
-                res = np.array(bbc)
-                self.logger.debug(
-                    "Prediction Probability for instance #{} = {:.3f}".format(i, probs[i]))
+
+            # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
+            probs_1 = Parallel(n_jobs=mp.cpu_count())(delayed(self.__predict)
+                                                      (x=X[i, :], node=self.root)
+                                                      for i in range(X.shape[0]))
+
+            # Extract the second element of each tuple (i.e., the probability score)
+            probs_1 = np.array([p[1] for p in probs_1])
+            # Get the dual prediction scores
+            probs_0 = (1 - probs_1)
+
+        return np.column_stack((probs_0, probs_1))
+
+        # # Loop through each individual instance
+        # for i in range(np.size(X, 0)):
+        #     self.logger.debug(
+        #         "Computing prediction for instance #{}".format(i))
+        #     # compute the prediction probability for the i-th instance
+        #     probs[i] = self.__predict(X[i, :], self.root)[1]
+        #     # (i.e., a one-dimensional array corresponding to the i-th row)
+        #     proba[i] = (1 - probs[i])
+        #     bbc.append([proba[i], probs[i]])
+        #     res = np.array(bbc)
+        #     self.logger.debug(
+        #         "Prediction Probability for instance #{} = {:.3f}".format(i, probs[i]))
         # Finally, return prediction probabilities
-        return res
+        # return res
 
     def save(self, filename):
         """
