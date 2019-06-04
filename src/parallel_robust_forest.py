@@ -1556,11 +1556,11 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         if self.is_trained:
 
             # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
-            # predictions = np.asarray(Parallel(n_jobs=-1, verbose=1, batch_size=100, backend="threading")(delayed(self.__predict)
+            # predictions = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(self.__predict)
             #                                                                        (x=X[i, :], node=self.root)
             #                                                                        for i in range(X.shape[0])))
 
-            predictions = np.asarray(Parallel(n_jobs=-1, verbose=1, batch_size=100, backend="threading")(delayed(unwrap_self)(
+            predictions = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(unwrap_self)(
                 z) for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
             # Extract the first element of each tuple (i.e., the actual prediction)
             predictions = predictions[:, 0]
@@ -1597,11 +1597,11 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         # Check if the current tree is trained
         if self.is_trained:
             # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
-            # probs_1 = np.asarray(Parallel(n_jobs=-1, verbose=1, batch_size=100, backend="threading")(delayed(self.__predict)
+            # probs_1 = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(self.__predict)
             #                                                                    (x=X[i, :], node=self.root)
             #                                                                    for i in range(X.shape[0])))
 
-            probs_1 = np.asarray(Parallel(n_jobs=-1, verbose=1, batch_size=100, backend="threading")(delayed(unwrap_self)(z)
+            probs_1 = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(unwrap_self)(z)
                                                                                                      for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
 
             # Extract the second element of each tuple (i.e., the probability score)
