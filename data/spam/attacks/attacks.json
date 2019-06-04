@@ -38,14 +38,6 @@
                 "cost": 30,
                 "is_numerical": true
             }]
-        },
-        {
-            "word_freq_hp": [{
-                "pre": "(1, np.inf)",
-                "post": -1,
-                "cost": 30,
-                "is_numerical": true
-            }]
         }
     ]
 }
