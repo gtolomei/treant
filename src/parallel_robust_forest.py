@@ -1631,6 +1631,10 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
 #             probs_1 = np.asarray(Parallel(n_jobs=-1, batch_size=100)(delayed(unwrap_self)(z)
 #                                                                                                      for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
 
+            # TODO:
+            # 1. remove parallism
+            # 2. check if static_predict is useful or not
+            # (threding seems not to avoid GIL)
             probs_1 = np.asarray(
                 Parallel(n_jobs=1, batch_size=200)
                 (delayed(static_predict)(x=X[i, :], 
