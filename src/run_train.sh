@@ -37,7 +37,7 @@ BASH_SCRIPT="${BASH_SCRIPT_NAME}.sh"
 ALGO=(par-robust)
 N_ESTIMATORS=(100)
 DEPTHS=(8)
-BUDGETS=(0)
+BUDGETS=(30 60)
 
 
 echo "*********** Training Robust Random Forest on ${DATASET_NAME} dataset ***********"

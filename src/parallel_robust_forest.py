@@ -10,41 +10,37 @@ import sys
 import os
 import logging
 import dill
+import json
 import numpy as np
 import pandas as pd
-import multiprocessing as mp
 from copy import deepcopy
 from scipy import stats
 from scipy.optimize import minimize
 from sklearn.base import BaseEstimator, ClassifierMixin
-from pathos.multiprocessing import ProcessingPool
 
 
 """
 Logging setup
 """
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO)
 
-LOGGING_FORMAT = '%(asctime)-15s *** %(levelname)s [%(filename)s:%(lineno)s - %(funcName)s()] *** %(message)s'
-formatter = logging.Formatter(LOGGING_FORMAT)
+# LOGGING_FORMAT = '%(asctime)-15s *** %(levelname)s [%(filename)s:%(lineno)s - %(funcName)s()] *** %(message)s'
+# formatter = logging.Formatter(LOGGING_FORMAT)
 
-# log to stdout console
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
+# # log to stdout console
+# console_handler = logging.StreamHandler()
+# console_handler.setLevel(logging.INFO)
+# console_handler.setFormatter(formatter)
+# logger.addHandler(console_handler)
 
-# log to file
-file_handler = logging.FileHandler(
-    filename="./robust_forest.log", mode="w")
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-
-# logging.basicConfig(
-#     format='%(asctime)s : %(levelname)s : %(message)s', level=self.logger.info)
+# # log to file
+# file_handler = logging.FileHandler(
+#     filename="./robust_forest.log", mode="w")
+# file_handler.setLevel(logging.INFO)
+# file_handler.setFormatter(formatter)
+# logger.addHandler(file_handler)
 
 
 # CONSTANTS
@@ -53,6 +49,7 @@ SEED = np.random.seed(73)
 
 
 # <code>Attacker Rule</code>
+
 
 class AttackerRule:
     """
@@ -76,6 +73,14 @@ class AttackerRule:
         self.post_condition = post_condition
         self.cost = cost
         self.is_numerical = is_numerical
+        if (not self.is_numerical):
+            if type(self.pre_conditions[1]) == str:
+                # fix single element
+                self.pre_conditions = (
+                    self.pre_conditions[0], set((self.pre_conditions[1],)))
+            else:
+                self.pre_conditions = (
+                    self.pre_conditions[0], set(self.pre_conditions[1]))
 
         self.logger = logging.getLogger(__name__)
 
@@ -101,9 +106,18 @@ class AttackerRule:
         """
         Return the feature (id) targeted by this rule.
         """
-        return list(self.post_condition.keys())[0]
+        return self.post_condition[0]
 
-    def is_applicable(self, x, numerical_idx):
+    def get_pre_interval(self):
+        if self.is_numerical:
+            return self.pre_conditions[1]
+        else:
+            return None
+
+    def is_num(self):
+        return self.is_numerical
+
+    def is_applicable(self, x):
         """
         Returns whether the rule can be applied to the input instance x or not.
 
@@ -115,18 +129,13 @@ class AttackerRule:
         Return:
             True iff this rule is applicable to x (i.e., if x satisfies ALL the pre-conditions of this rule).
         """
-        for feature_id in self.pre_conditions:
-            left, right = self.pre_conditions[feature_id]
-            # if isinstance(x[feature_id], int) or isinstance(x[feature_id], float):
-            if numerical_idx[feature_id]:  # the feature is numeric
-                if x[feature_id] < left or x[feature_id] > right:
-                    return False
-            else:  # the feature is categorical
-                # right is useless for categorical features as it is the same as left
-                if x[feature_id] != left:
-                    return False
-
-        return True
+        feature_id = self.pre_conditions[0]
+        if self.is_numerical:  # the feature is numeric
+            left, right = self.pre_conditions[1]
+            return left <= x[feature_id] <= right
+        else:  # the feature is categorical
+            valid_set = self.pre_conditions[1]
+            return x[feature_id] in valid_set
 
     def apply(self, x):
         """
@@ -138,18 +147,44 @@ class AttackerRule:
         Return:
             x_prime (numpy.array): A (deep) copy of x yet modified according to the post-condition of this rule.
         """
-        feature_id, feature_attack = list(self.post_condition.items())[0]
-        x_prime = np.copy(x)
+        x_prime = x.copy()
+        feature_id, feature_attack = self.post_condition
         if self.is_numerical:
             x_prime[feature_id] += feature_attack
         else:
             x_prime[feature_id] = feature_attack
         return x_prime
 
-
 # <code>Attacker</code>
 #
 # This class represents an **attacker**. Informally, this is made of a **set of rules** (i.e., <code>AttackerRule</code>s) and a **budget** which it can spend on modifying instances.
+
+
+def load_attack_rules(attack_rules_filename, colnames):
+
+    attack_rules = []
+
+    with open(attack_rules_filename) as json_file:
+        json_data = json.load(json_file)
+        json_attacks = json_data["attacks"]
+        for attack in json_attacks:
+            for feature in attack:
+                feature_atk_list = attack[feature]
+                for feature_atk in feature_atk_list:
+                    pre = feature_atk["pre"]
+                    post = feature_atk["post"]
+                    cost = feature_atk["cost"]
+                    is_numerical = feature_atk["is_numerical"]
+                    attack_rules.append(
+                        AttackerRule(
+                            (colnames.index(feature), eval(pre)),
+                            (colnames.index(feature), post),
+                            cost=cost,
+                            is_numerical=is_numerical
+                        )
+                    )
+
+    return attack_rules
 
 
 class Attacker:
@@ -288,8 +323,7 @@ class Attacker:
             applicables = [
                 r for r in self.rules if r.get_target_feature() == feature_id]
             # extract the list of applicable rules out of the set of all rules
-            applicables = [r for r in applicables if r.is_applicable(
-                x, self.numerical_idx)]
+            applicables = [r for r in applicables if r.is_applicable(x)]
 
             for r in applicables:  # for each applicable rule
                 # check if the current budget of the attacker is large enough to apply the rule
@@ -300,6 +334,22 @@ class Attacker:
                     if not any(atk for atk in attacks if self.__is_equal_perturbation(atk, (x_prime, cost_prime))):
                         # insert such a new instance in the queue with its updated cost
                         queue.insert(0, (x_prime, cost_prime))
+
+                    # if numerical check extremes !
+                    if r.is_num():
+                        # Evaluate extremes of validity interval
+                        f = r.get_target_feature()
+                        low, high = sorted([x[f], x_prime[f]])
+                        extremes = r.get_pre_interval()
+                        z = set([t for t in extremes if low < t < high])
+                        # apply modifications
+                        for zi in z:
+                            x_prime = x.copy()
+                            x_prime[f] = zi
+                            if not any(atk for atk in attacks if self.__is_equal_perturbation(atk, (x_prime, cost_prime))):
+                                # insert such a new instance in the queue with its updated cost
+                                queue.insert(0, (x_prime, cost_prime))
+
         # eventually, return all the (unique) attacks generated
         return attacks
 
@@ -626,8 +676,8 @@ class SplitOptimizer(object):
         if len(y_true) == 0:
             return 0
 
-        EPSILON = 0.000001  # to avoid computing log_2(0) (i.e., P_k > 0)
         freqs = np.bincount(y_true)
+        # to avoid computing log_2(0) (i.e., P_k > 0)
         return -np.sum((freqs + EPSILON) / len(y_true) * np.log2((freqs + EPSILON) / len(y_true)))
 
     @staticmethod
@@ -1265,7 +1315,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         # Check if there has been an actual best gain
         # (NOTE: if the best gain returned by the optimizer is 0 it means no further split is actually worth it
         # and therefore the current node will become a leaf)
-        if best_gain > 0.0001:  # TO FIX!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        if best_gain > EPSILON:
             # assign current node SSE under max attack
             node.set_loss_value(best_sse_uma)
             self.logger.info("Current node's loss (after best splitting): {:.5f}".format(
@@ -1370,7 +1420,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         """
 
         np.random.seed()
-        
+
         self.logger.info('Fitting Tree ID {}...  [process ID: {}]'.format(
             self.tree_id, os.getpid()))
 
@@ -1425,7 +1475,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.is_trained = True
             self.logger.info('Fitting Tree ID {} completed (is_trained = {})! [process ID: {}]'
                              .format(self.tree_id, self.is_trained, os.getpid()))
-        
+
         # Clean
         self.clean_after_training()
 
@@ -1434,7 +1484,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
     def clean_after_training(self):
         self.attacker = None
         self.split_optimizer = None
-        
+
     def __predict(self, x, node):
         """
         This function provides the prediction for a single instance x.
@@ -1493,20 +1543,13 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         """
 
         # prepare the array of predictions
-        predictions = np.empty(np.size(X, 0))
+        predictions = np.empty(X.shape[0])
 
         # Check if the current tree is trained
         if self.is_trained:
-            # Loop through each individual instance
-            for i in range(np.size(X, 0)):
-                self.logger.debug(
-                    "Computing prediction for instance #{}".format(i))
-                # compute the prediction for the i-th instance
-                predictions[i] = self.__predict(X[i, :], self.root)[0]
-                # (i.e., a one-dimensional array corresponding to the i-th row)
-                self.logger.debug(
-                    "Prediction for instance #{} = {}".format(i, predictions[i]))
-        # Finally, return predictions
+            # Get the prediction for all the instances
+            predictions = np.asarray([self.__predict(x=X[i, :], node=self.root)[0] for i in range(X.shape[0])])
+
         return predictions
 
     def predict_proba(self, X, y=None):
@@ -1520,28 +1563,20 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                              samples which we want to know the predictions of.
 
         Returns:
-            predictions (numpy.array): 1-dimensional array of shape (n_test_samples, ).
+            probs (numpy.array): 2-dimensional array of shape (n_test_samples, 2) containing probability scores both for class 0 (1st column) and class 1 (2nd column).
         """
-        probs = np.empty(np.size(X, 0))
-        proba = np.empty(np.size(X, 0))
-        bbc = []
+        probs_0 = np.empty(X.shape[0])
+        probs_1 = np.empty(X.shape[0])
+        # bbc = []
 
         # Check if the current tree is trained
         if self.is_trained:
-            # Loop through each individual instance
-            for i in range(np.size(X, 0)):
-                self.logger.debug(
-                    "Computing prediction for instance #{}".format(i))
-                # compute the prediction probability for the i-th instance
-                probs[i] = self.__predict(X[i, :], self.root)[1]
-                # (i.e., a one-dimensional array corresponding to the i-th row)
-                proba[i] = (1 - probs[i])
-                bbc.append([proba[i], probs[i]])
-                res = np.array(bbc)
-                self.logger.debug(
-                    "Prediction Probability for instance #{} = {:.3f}".format(i, probs[i]))
-        # Finally, return prediction probabilities
-        return res
+            # Get the prediction scores for class 1
+            probs_1 = np.asarray([self.__predict(x=X[i, :], node=self.root)[1] for i in range(X.shape[0])])
+            # Get the prediction scores for class 0
+            probs_0 = (1 - probs_1)
+
+        return np.column_stack((probs_0, probs_1))
 
     def save(self, filename):
         """
@@ -1722,7 +1757,7 @@ class RobustForest(object):
             dill.dump(self, model_file)
 
         out_df = pd.DataFrame(columns=[
-                              'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
+            'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
         out_df = out_df.append({'num_trees': self.n_estimators, 'learning_rate': None, 'num_leaves': None, 'best_round': None,
                                 'metric': 0.0, 'filename': filename}, ignore_index=True)
         out_df.to_csv(filename.split('_B')[0] + '.csv', index=False)
