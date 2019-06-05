@@ -55,6 +55,29 @@ SEED = np.random.seed(73)
 def unwrap_self(arg, **kwarg):
     return RobustDecisionTree._RobustDecisionTree__predict(*arg, **kwarg)
 
+def static_predict(x, node, numerical_idx):
+    # base case: the current node has no left nor right child (i.e., it is a leaf)
+    if node.is_leaf():
+        return node.get_node_prediction()
+
+    # otherwise, get the best splitting feature id and value stored at this node
+    best_feature_id    = node.best_split_feature_id
+    best_feature_value = node.best_split_feature_value
+    x_feature_value    = x[best_feature_id]
+
+    if numerical_idx[best_feature_id]:  # the feature is numeric
+        if x_feature_value <= best_feature_value:
+            return static_predict(x, node.left, numerical_idx)
+        else:
+            return static_predict(x, node.right, numerical_idx)
+    else:  # the feature is categorical
+        if x_feature_value == best_feature_value:
+            return static_predict(x, node.left, numerical_idx)
+        else:
+            return static_predict(x, node.right, numerical_idx)
+
+
+
 # <code>Attacker Rule</code>
 
 
@@ -1556,13 +1579,16 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         if self.is_trained:
 
             # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
-            # predictions = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(self.__predict)
-            #                                                                        (x=X[i, :], node=self.root)
-            #                                                                        for i in range(X.shape[0])))
+            predictions = np.asarray(
+                Parallel(n_jobs=-1, batch_size=200, backend="threading")
+                (delayed(static_predict)(x=X[i, :], 
+                                         node=self.root, 
+                                         numerical_idx=self.numerical_idx)
+                                            for i in range(X.shape[0])))
 
-            predictions = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(unwrap_self)(
-                z) for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
-            # Extract the first element of each tuple (i.e., the actual prediction)
+#             predictions = np.asarray(Parallel(n_jobs=-1, batch_size=100)(delayed(unwrap_self)(
+#                 z) for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
+#             # Extract the first element of each tuple (i.e., the actual prediction)
             predictions = predictions[:, 0]
 
             # Loop through each individual instance
@@ -1596,13 +1622,21 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
 
         # Check if the current tree is trained
         if self.is_trained:
+            #print ("!!", len(X))
             # This will return a list of tuples [(pred_0, score_0), ..., (pred_n-1, score_n-1)]
             # probs_1 = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(self.__predict)
             #                                                                    (x=X[i, :], node=self.root)
             #                                                                    for i in range(X.shape[0])))
 
-            probs_1 = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(unwrap_self)(z)
-                                                                                                     for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
+#             probs_1 = np.asarray(Parallel(n_jobs=-1, batch_size=100)(delayed(unwrap_self)(z)
+#                                                                                                      for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
+
+            probs_1 = np.asarray(
+                Parallel(n_jobs=1, batch_size=200)
+                (delayed(static_predict)(x=X[i, :], 
+                                         node=self.root, 
+                                         numerical_idx=self.numerical_idx)
+                                            for i in range(X.shape[0])))
 
             # Extract the second element of each tuple (i.e., the probability score)
             probs_1 = probs_1[:, 1]
