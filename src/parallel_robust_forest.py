@@ -23,27 +23,24 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 Logging setup
 """
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO)
 
-LOGGING_FORMAT = '%(asctime)-15s *** %(levelname)s [%(filename)s:%(lineno)s - %(funcName)s()] *** %(message)s'
-formatter = logging.Formatter(LOGGING_FORMAT)
+# LOGGING_FORMAT = '%(asctime)-15s *** %(levelname)s [%(filename)s:%(lineno)s - %(funcName)s()] *** %(message)s'
+# formatter = logging.Formatter(LOGGING_FORMAT)
 
-# log to stdout console
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
+# # log to stdout console
+# console_handler = logging.StreamHandler()
+# console_handler.setLevel(logging.INFO)
+# console_handler.setFormatter(formatter)
+# logger.addHandler(console_handler)
 
-# log to file
-file_handler = logging.FileHandler(
-    filename="./robust_forest.log", mode="w")
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-
-# logging.basicConfig(
-#     format='%(asctime)s : %(levelname)s : %(message)s', level=self.logger.info)
+# # log to file
+# file_handler = logging.FileHandler(
+#     filename="./robust_forest.log", mode="w")
+# file_handler.setLevel(logging.INFO)
+# file_handler.setFormatter(formatter)
+# logger.addHandler(file_handler)
 
 
 # CONSTANTS
@@ -679,8 +676,8 @@ class SplitOptimizer(object):
         if len(y_true) == 0:
             return 0
 
-        EPSILON = 0.000001  # to avoid computing log_2(0) (i.e., P_k > 0)
         freqs = np.bincount(y_true)
+        # to avoid computing log_2(0) (i.e., P_k > 0)
         return -np.sum((freqs + EPSILON) / len(y_true) * np.log2((freqs + EPSILON) / len(y_true)))
 
     @staticmethod
@@ -1318,7 +1315,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         # Check if there has been an actual best gain
         # (NOTE: if the best gain returned by the optimizer is 0 it means no further split is actually worth it
         # and therefore the current node will become a leaf)
-        if best_gain > 0.0001:  # TO FIX!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        if best_gain > EPSILON:
             # assign current node SSE under max attack
             node.set_loss_value(best_sse_uma)
             self.logger.info("Current node's loss (after best splitting): {:.5f}".format(
