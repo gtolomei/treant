@@ -52,9 +52,6 @@ EPSILON = 1e-10
 SEED = np.random.seed(73)
 
 
-def unwrap_self(arg, **kwarg):
-    return RobustDecisionTree._RobustDecisionTree__predict(*arg, **kwarg)
-
 def static_predict(x, node, numerical_idx):
     # base case: the current node has no left nor right child (i.e., it is a leaf)
     if node.is_leaf():
@@ -1586,8 +1583,6 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                                          numerical_idx=self.numerical_idx)
                                             for i in range(X.shape[0])))
 
-#             predictions = np.asarray(Parallel(n_jobs=-1, batch_size=100)(delayed(unwrap_self)(
-#                 z) for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
 #             # Extract the first element of each tuple (i.e., the actual prediction)
             predictions = predictions[:, 0]
 
@@ -1627,9 +1622,6 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             # probs_1 = np.asarray(Parallel(n_jobs=-1, batch_size=100, backend="threading")(delayed(self.__predict)
             #                                                                    (x=X[i, :], node=self.root)
             #                                                                    for i in range(X.shape[0])))
-
-#             probs_1 = np.asarray(Parallel(n_jobs=-1, batch_size=100)(delayed(unwrap_self)(z)
-#                                                                                                      for z in zip([self] * X.shape[0], [X[i, :] for i in range(X.shape[0])], [self.root] * X.shape[0])))
 
             # TODO:
             # 1. remove parallism
