@@ -1,0 +1,35 @@
+{
+    "attacks": [{
+            "PAY_0": [{
+                "pre": "(2, 9)",
+                "post": -1,
+                "cost": 10,
+                "is_numerical": true
+            }]
+        },
+        {
+            "BILL_AMT1": [{
+                "pre": "(60000, 80000)",
+                "post": -10000,
+                "cost": 10,
+                "is_numerical": true
+            }]
+        },
+        {
+            "PAY_2": [{
+                "pre": "(2, 9)",
+                "post": -1,
+                "cost": 10,
+                "is_numerical": true
+            }]
+        },
+        {
+            "LIMIT_BAL": [{
+                "pre": "(150000, 250000)",
+                "post": 20000,
+                "cost": 10,
+                "is_numerical": true
+            }]
+        }
+    ]
+}
