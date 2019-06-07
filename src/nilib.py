@@ -70,7 +70,7 @@ def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
         cat_fx = full.columns.values[np.where(full.dtypes == 'object')[0]]
         cat_fx = list(cat_fx)
         full = label_encode(full, cat_fx)
-        
+
         print("CatFX:", cat_fx)
 
         train_cat = full.iloc[0:train_size, :]
@@ -93,7 +93,7 @@ def load_atk_train_valid_test(atk_train_file, atk_valid_file, atk_test_file,
         train_cat.to_pickle(atk_train_file+".atks.bz2", compression="bz2") #, index=False)
         valid_cat.to_pickle(atk_valid_file+".atks.bz2", compression="bz2") #, index=False)
         test_cat.to_pickle (atk_test_file+".atks.bz2",  compression="bz2") #, index=False)
-        
+
     else:
         print("Loading pre-processed files...")
 

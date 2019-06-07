@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This is the top-level (i.e., outermost) script, which is used to launch a set of training runs 
+# This is the top-level (i.e., outermost) script, which is used to launch a set of training runs
 # using several different configurations of hyperparameters.
 
 # Remember to cite GNU Parallel as follows:
