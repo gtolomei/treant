@@ -28,7 +28,7 @@ then
 fi
 
 
-PARALLEL=16
+PARALLEL=1
 
 DATASET_NAME=$1
 BASH_SCRIPT_NAME="train_robust_forest"
@@ -37,7 +37,7 @@ BASH_SCRIPT="${BASH_SCRIPT_NAME}.sh"
 ALGO=(par-robust)
 N_ESTIMATORS=(100)
 DEPTHS=(8)
-BUDGETS=(10 20)
+BUDGETS=(30)
 
 
 echo "*********** Training Robust Random Forest on ${DATASET_NAME} dataset ***********"
