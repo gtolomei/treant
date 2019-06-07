@@ -1,27 +1,36 @@
 {
     "attacks": [{
             "alcohol": [{
-                "pre": "(0, 10.0)",
-                "post": 0.75,
+                "pre": "(0, 11.0)",
+                "post": 0.5,
                 "cost": 10,
                 "is_numerical": true
             }]
         },
         {
             "residual_sugar": [{
-                    "pre": "(8, np.inf)",
-                    "post": -1.2,
+                    "pre": "(2, np.inf)",
+                    "post": -0.25,
                     "cost": 10,
                     "is_numerical": true
                 }]
         },
         {
-            "volatile_acidity": [{
-                    "pre": "(0.6, np.inf)",
-                    "post": -0.3,
+             "volatile_acidity": [{
+                    "pre": "(0.25, np.inf)",
+                    "post": -0.1,
+                    "cost": 10,
+                    "is_numerical": true
+                }]
+        },
+        {
+             "free_sulfur_dioxide": [{
+                    "pre": "(25, np.inf)",
+                    "post": -2.0,
                     "cost": 10,
                     "is_numerical": true
                 }]
         }
+
     ]
 }
