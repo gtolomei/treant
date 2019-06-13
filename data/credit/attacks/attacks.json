@@ -1,8 +1,8 @@
 {
     "attacks": [{
             "PAY_0": [{
-                "pre": "(2, 9)",
-                "post": -1,
+                "pre": "(0.5, 9)",
+                "post": -0.5,
                 "cost": 10,
                 "is_numerical": true
             }]
@@ -17,8 +17,8 @@
         },
         {
             "PAY_2": [{
-                "pre": "(2, 9)",
-                "post": -1,
+                "pre": "(0.5, 9)",
+                "post": -0.5,
                 "cost": 10,
                 "is_numerical": true
             }]
