@@ -841,7 +841,7 @@ class SplitOptimizer(object):
             return split_left, split_right, split_unknown_right + split_unknown_left, None
         else:
             # eventually, we return the 3 list of instance indices distributed across the 3 possible branches
-            y_pred_left, y_pred_right, sse = sorted(icml_options, key=lambda x:x[-1])[0]
+            y_pred_left, y_pred_right, sse = sorted(icml_options, key=lambda x:x[-1])[-1]
             return split_left, split_right, split_unknown_right + split_unknown_left, (y_pred_left, y_pred_right, sse)
 
     def __simulate_split(self, X, rows, numerical_idx, attacker, costs, feature_id, feature_value):
