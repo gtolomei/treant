@@ -842,6 +842,9 @@ class SplitOptimizer(object):
         else:
             # eventually, we return the 3 list of instance indices distributed across the 3 possible branches
             y_pred_left, y_pred_right, sse = sorted(icml_options, key=lambda x:x[-1])[-1]
+            # overwrite pred_lef and right
+            y_pred_left  = np.mean(y[split_left  + split_unknown_left])
+            y_pred_right = np.mean(y[split_right + split_unknown_right])
             return split_left, split_right, split_unknown_right + split_unknown_left, (y_pred_left, y_pred_right, sse)
 
     def __simulate_split(self, X, rows, numerical_idx, attacker, costs, feature_id, feature_value):
@@ -1259,6 +1262,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                  replace_samples=False,
                  replace_features=False,
                  feature_blacklist={},
+                 affine=True,
                  seed=0
                  ):
         """
@@ -1290,7 +1294,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         self.feature_blacklist = feature_blacklist
         self.feature_blacklist_ids = set(list(feature_blacklist.keys()))
         self.feature_blacklist_names = set(list(feature_blacklist.values()))
-        self.is_affine = True  # self.attacker.is_filled()
+        self.is_affine = affine  # self.attacker.is_filled()
         self.seed = seed
 
         np.random.seed(self.seed)

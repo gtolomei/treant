@@ -445,7 +445,8 @@ def main(options):
                                     min_instances_per_node=options['instances_per_node'],
                                     max_samples=options['bootstrap_samples'] / 100.0,
                                     max_features=options['bootstrap_features'] / 100.0,
-                                    feature_blacklist=feature_blacklist
+                                    feature_blacklist=feature_blacklist,
+                                    affine=False
                                     )
 
         bagging = BaggingClassifier(base_estimator=rdt,
