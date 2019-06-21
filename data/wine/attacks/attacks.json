@@ -3,7 +3,7 @@
             "alcohol": [{
                 "pre": "(0, 11.0)",
                 "post": 0.5,
-                "cost": 10,
+                "cost": 20,
                 "is_numerical": true
             }]
         },
@@ -11,7 +11,7 @@
             "residual_sugar": [{
                     "pre": "(2, np.inf)",
                     "post": -0.25,
-                    "cost": 10,
+                    "cost": 30,
                     "is_numerical": true
                 }]
         },
@@ -19,7 +19,7 @@
              "volatile_acidity": [{
                     "pre": "(0.25, np.inf)",
                     "post": -0.1,
-                    "cost": 10,
+                    "cost": 30,
                     "is_numerical": true
                 }]
         },
@@ -27,7 +27,7 @@
              "free_sulfur_dioxide": [{
                     "pre": "(25, np.inf)",
                     "post": -2.0,
-                    "cost": 10,
+                    "cost": 50,
                     "is_numerical": true
                 }]
         }

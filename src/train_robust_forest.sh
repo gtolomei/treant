@@ -40,7 +40,7 @@ N_INSTANCES=30000
 N_INSTANCES_PER_NODE=20
 FEATURE_SAMPLING=80
 INSTANCE_SAMPLING=80
-JOBS=32
+JOBS=30
 
 # Check if there is any log file in the current working directory
 count=`ls -1 ./train_robust_forest_${DATASET_NAME}.log 2>/dev/null | wc -l`

@@ -34,10 +34,10 @@ DATASET_NAME=$1
 BASH_SCRIPT_NAME="train_robust_forest"
 BASH_SCRIPT="${BASH_SCRIPT_NAME}.sh"
 
-ALGO=(par-robust)
+ALGO=(icml2019)
 N_ESTIMATORS=(100)
 DEPTHS=(8)
-BUDGETS=(10 30 40 60 )
+BUDGETS=(20 40 60 80 100)
 
 
 echo "*********** Training Robust Random Forest on ${DATASET_NAME} dataset ***********"

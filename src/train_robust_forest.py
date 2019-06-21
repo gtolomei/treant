@@ -74,7 +74,7 @@ def get_options(cmd_args=None):
         const='standard',
         nargs='?',
         choices=['standard', 'reduced',
-                 'adv-boosting', 'robust', 'par-robust'],
+                 'adv-boosting', 'robust', 'par-robust', 'icml2019'],
         help="""List of possible models to train (default = standard).""")
     cmd_parser.add_argument(
         'n_estimators',
@@ -376,6 +376,11 @@ def main(options):
     optimizer = rf.SplitOptimizer(
         split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'])
 
+    logger.info(
+        "==> Create the split optimizer which will be used for this training...")
+    icml_optimizer = rf.SplitOptimizer(
+        split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'], icml2019=True)
+
     if options['model_type'] == 'robust':
         logger.info("==> Training \"{}\" random forest...".format(
             options['model_type']))
@@ -429,6 +434,34 @@ def main(options):
         save(bagging, options['output_dirname'] + '/' + output_model_filename,
              options['n_estimators'])
 
+    if options['model_type'] == 'icml2019':
+        from sklearn.ensemble import BaggingClassifier
+
+        # base robust tree
+        rdt = rf.RobustDecisionTree(0,
+                                    attacker=attacker,
+                                    split_optimizer=icml_optimizer,
+                                    max_depth=options['max_depth'],
+                                    min_instances_per_node=options['instances_per_node'],
+                                    max_samples=options['bootstrap_samples'] / 100.0,
+                                    max_features=options['bootstrap_features'] / 100.0,
+                                    feature_blacklist=feature_blacklist
+                                    )
+
+        bagging = BaggingClassifier(base_estimator=rdt,
+                                    n_estimators=options['n_estimators'],
+                                    max_features=1.0, max_samples=1.0,
+                                    bootstrap=False, bootstrap_features=False, 
+                                    n_jobs=options['jobs'])
+        bagging.fit(X_train, y_train)
+        # do some cleaning and prepare to evaluation
+        
+        bagging.n_jobs = None
+        bagging.base_estimator_.clean_after_training()
+        
+        save(bagging, options['output_dirname'] + '/' + output_model_filename,
+             options['n_estimators'])
+        
 
 if __name__ == "__main__":
     sys.exit(main(get_options()))

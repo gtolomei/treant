@@ -589,7 +589,7 @@ class SplitOptimizer(object):
     Of course this class can be instantiated with custom, user-defined splitting functions.
     """
 
-    def __init__(self, split_function=None, split_function_name=None):
+    def __init__(self, split_function=None, split_function_name=None, icml2019=False):
         """
         Class constructor.
 
@@ -607,6 +607,9 @@ class SplitOptimizer(object):
             self.split_function_name = split_function_name
 
         self.logger = logging.getLogger(__name__)
+        
+        self.icml2019 = icml2019
+
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -909,6 +912,8 @@ class SplitOptimizer(object):
         costs_left = None
         costs_right = None
 
+        assert (not self.icml2019) or len(constraints)==0, '!!! ICML ERROR: Non empty constraints !!!'
+        
         # create a dictionary containing individual values for each feature_id (limited to the slice of data located at this node)
         # {'feature_1': [val_1,1, ..., val_1,k1], ..., 'feature_n': [val_1,n, ..., val_1,kn]}
         # 1. filter out any blacklisted features from the list of features actually considered
@@ -1031,65 +1036,79 @@ class SplitOptimizer(object):
         # Continue iff there's an actual gain
         if best_gain > 0:
 
-            self.logger.debug(
-                "Assign unknown instance either to left or right split, according to the worst-case scenario...")
-            # get the unknown-y values
-            y_true_unknown = y[best_split_unknown_id]
-            unknown_to_left = np.abs(y_true_unknown - best_pred_left)
-            unknown_to_right = np.abs(y_true_unknown - best_pred_right)
-
-            constraints_left = np.array(
-                [c.propagate_left(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
-            constraints_left = constraints_left[constraints_left != np.array(
-                None)].tolist()
-
-            constraints_right = np.array(
-                [c.propagate_right(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
-            constraints_right = constraints_right[constraints_right != np.array(
-                None)].tolist()
-
-            for i, u in enumerate(best_split_unknown_id):
-                self.logger.debug("Label of unknown instance ID {}: {}".format(
-                    i, y_true_unknown[i]))
+            if self.icml2019:
                 self.logger.debug(
-                    "Distance to left prediction: {:.3f}".format(unknown_to_left[i]))
+                    "Assign unknown instance either to left or right split, according to ICML2019 strategy")
+
+                constraints_left  = []
+                constraints_right = []
+                
+                for u in best_split_unknown_id:
+                    if X[u,best_split_feature_id] <= best_split_feature_value:
+                        best_split_left_id.append(u)
+                    else:
+                        best_split_right_id.append(u)
+
+            else:
                 self.logger.debug(
-                    "Distance to right prediction: {:.3f}".format(unknown_to_right[i]))
+                    "Assign unknown instance either to left or right split, according to the worst-case scenario...")
+                # get the unknown-y values
+                y_true_unknown = y[best_split_unknown_id]
+                unknown_to_left = np.abs(y_true_unknown - best_pred_left)
+                unknown_to_right = np.abs(y_true_unknown - best_pred_right)
 
-                attacks = attacker.attack(
-                    X[u, :], best_split_feature_id, costs[u])
-                min_left = None
-                min_right = None
+                constraints_left = np.array(
+                    [c.propagate_left(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
+                constraints_left = constraints_left[constraints_left != np.array(
+                    None)].tolist()
 
-                if numerical_idx[best_split_feature_id]:
-                    min_left = np.min(
-                        [atk[1] for atk in attacks if atk[0][best_split_feature_id] <= best_split_feature_value])
-                    min_right = np.min(
-                        [atk[1] for atk in attacks if atk[0][best_split_feature_id] > best_split_feature_value])
-                else:
-                    min_left = np.min(
-                        [atk[1] for atk in attacks if atk[0][best_split_feature_id] == best_split_feature_value])
-                    min_right = np.min(
-                        [atk[1] for atk in attacks if atk[0][best_split_feature_id] != best_split_feature_value])
+                constraints_right = np.array(
+                    [c.propagate_right(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
+                constraints_right = constraints_right[constraints_right != np.array(
+                    None)].tolist()
 
-                if unknown_to_left[i] > unknown_to_right[i]:
+                for i, u in enumerate(best_split_unknown_id):
+                    self.logger.debug("Label of unknown instance ID {}: {}".format(
+                        i, y_true_unknown[i]))
                     self.logger.debug(
-                        "Assign unknown instance ID {} to left split as the distance is larger".format(i))
-                    best_split_left_id.append(u)
-                    costs[u] = min_left
-                    constraints_left.append(Constraint(
-                        X[u, :], y[u], costs[u], 1, best_pred_right))
-                    constraints_right.append(Constraint(
-                        X[u, :], y[u], costs[u], 0, best_pred_right))
-                else:
+                        "Distance to left prediction: {:.3f}".format(unknown_to_left[i]))
                     self.logger.debug(
-                        "Assign unknown instance ID {} to right split as the distance is larger".format(i))
-                    best_split_right_id.append(u)
-                    costs[u] = min_right
-                    constraints_left.append(Constraint(
-                        X[u, :], y[u], costs[u], 0, best_pred_left))
-                    constraints_right.append(Constraint(
-                        X[u, :], y[u], costs[u], 1, best_pred_left))
+                        "Distance to right prediction: {:.3f}".format(unknown_to_right[i]))
+
+                    attacks = attacker.attack(
+                        X[u, :], best_split_feature_id, costs[u])
+                    min_left = None
+                    min_right = None
+
+                    if numerical_idx[best_split_feature_id]:
+                        min_left = np.min(
+                            [atk[1] for atk in attacks if atk[0][best_split_feature_id] <= best_split_feature_value])
+                        min_right = np.min(
+                            [atk[1] for atk in attacks if atk[0][best_split_feature_id] > best_split_feature_value])
+                    else:
+                        min_left = np.min(
+                            [atk[1] for atk in attacks if atk[0][best_split_feature_id] == best_split_feature_value])
+                        min_right = np.min(
+                            [atk[1] for atk in attacks if atk[0][best_split_feature_id] != best_split_feature_value])
+
+                    if unknown_to_left[i] > unknown_to_right[i]:
+                        self.logger.debug(
+                            "Assign unknown instance ID {} to left split as the distance is larger".format(i))
+                        best_split_left_id.append(u)
+                        costs[u] = min_left
+                        constraints_left.append(Constraint(
+                            X[u, :], y[u], costs[u], 1, best_pred_right))
+                        constraints_right.append(Constraint(
+                            X[u, :], y[u], costs[u], 0, best_pred_right))
+                    else:
+                        self.logger.debug(
+                            "Assign unknown instance ID {} to right split as the distance is larger".format(i))
+                        best_split_right_id.append(u)
+                        costs[u] = min_right
+                        constraints_left.append(Constraint(
+                            X[u, :], y[u], costs[u], 0, best_pred_left))
+                        constraints_right.append(Constraint(
+                            X[u, :], y[u], costs[u], 1, best_pred_left))
 
             costs_left = {key: costs[key] for key in best_split_left_id}
             costs_right = {key: costs[key] for key in best_split_right_id}
