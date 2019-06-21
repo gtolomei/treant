@@ -745,12 +745,14 @@ class SplitOptimizer(object):
 
         return 1 / len(y_true) * np.sum(np.abs(y_true - y_pred))
 
+
     def __icml_split_loss(self, y, L, R):
         icml_pred_left  = np.mean(y[L])
         icml_pred_right = np.mean(y[R])
         icml_loss = self.__sse (y[L] , icml_pred_left) + self.__sse (y[R], icml_pred_right)
-        return [icml_pred_left, icml_pred_right, icml_loss]
-    
+        return icml_pred_left, icml_pred_right, icml_loss
+
+
     def __split_icml2019(self, X, y, rows, numerical_idx, attacker, costs, feature_id, feature_value):
         is_numerical = numerical_idx[feature_id]
         split_left = []  # indices of instances which surely DO satisfy the boolean spitting predicate, disregarding the attacker
@@ -844,7 +846,7 @@ class SplitOptimizer(object):
         else:
             # eventually, we return the 3 list of instance indices distributed across the 3 possible branches
             y_pred_left, y_pred_right, sse = sorted(icml_options, key=lambda x:x[-1])[-1]
-            # overwrite pred_lef and right
+            # overwrite pred_left and right
             y_pred_left  = np.mean(y[split_left  + split_unknown_left])
             y_pred_right = np.mean(y[split_right + split_unknown_right])
             return split_left, split_right, split_unknown_right + split_unknown_left, (y_pred_left, y_pred_right, sse)
@@ -1042,7 +1044,7 @@ class SplitOptimizer(object):
 
                 if self.icml2019:
                     split_left, split_right, split_unknown, optimizer_res = self.__split_icml2019(X, y, rows, numerical_idx, attacker, costs, feature_id, feature_value)
-                    
+
                 else:
                     split_left, split_right, split_unknown = self.__simulate_split(
                         X, rows, numerical_idx, attacker, costs, feature_id, feature_value)
