@@ -745,6 +745,105 @@ class SplitOptimizer(object):
 
         return 1 / len(y_true) * np.sum(np.abs(y_true - y_pred))
 
+    def __icml_split_loss(self, y, L, R):
+        icml_pred_left  = np.mean(y[L])
+        icml_pred_right = np.mean(y[R])
+        icml_loss = self.__sse (y[L] , icml_pred_left) + self.__sse (y[R], icml_pred_right)
+        return [icml_pred_left, icml_pred_right, icml_loss]
+    
+    def __split_icml2019(self, X, y, rows, numerical_idx, attacker, costs, feature_id, feature_value):
+        is_numerical = numerical_idx[feature_id]
+        split_left = []  # indices of instances which surely DO satisfy the boolean spitting predicate, disregarding the attacker
+        split_right = []  # indices of instances which surely DO NOT satisfy the boolean spitting predicate, disregarding the attacker
+        # indices of instances which may or may not satisfy the boolean splitting predicate
+        split_unknown_left  = []
+        split_unknown_right = []
+
+        # loop through every instance
+        for row_id in rows:
+            # x = X[row_id, :]  # get the i-th instance
+            # get the i-th cost spent on the i-th instance so far
+            cost = costs[row_id]
+            # collect all the attacks the attacker can do on the i-th instance
+            attacks = attacker.attack(X[row_id, :], feature_id, cost)
+
+            # apply the splitting predicates to all the attacks of the i-th instance, limited to feature_id of interest
+            # this will get a boolean mask (i.e., a binary vector containing as many elements as the number of attacks for this instance)
+            all_left = True
+            all_right = True
+
+            for atk in attacks:
+                if is_numerical:
+                    if atk[0][feature_id] <= feature_value:
+                        all_right = False
+                    else:
+                        all_left = False
+                else:
+                    if atk[0][feature_id] == feature_value:
+                        all_right = False
+                    else:
+                        all_left = False
+
+                if not all_left and not all_right:
+                    break
+
+            if all_left:
+                # it means the splitting predicate is ALWAYS satisfied by this instance, no matter what the attacker does
+                # as such, we can safely place this instance among those which surely go to the true (left) branch
+                split_left.append(row_id)
+
+            elif all_right:
+                # it means the splitting predicate is NEVER satisfied by this instance, no matter what the attacker does
+                # as such, we can safely place this instance among those which surely go to the false (right) branch
+                split_right.append(row_id)
+
+            else:
+                # it means the splitting predicate MAY or MAY NOT be satisfied, depending on what the attacker does
+                # as such, we place this instance among the unknowns
+                if is_numerical:
+                    if X[row_id,feature_id] <= feature_value:
+                        split_unknown_left.append(row_id)
+                    else:
+                        split_unknown_right.append(row_id)
+                else:
+                    if X[row_id,feature_id] == feature_value:
+                        split_unknown_left.append(row_id)
+                    else:
+                        split_unknown_right.append(row_id)
+        
+        icml_options = []
+        
+        # case 1: no perturbations
+        icml_left  = split_left + split_unknown_left
+        icml_right = split_right + split_unknown_right
+        if len(icml_left)!=0 and len(icml_right)!=0:
+            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        
+        # case 2: swap
+        icml_left  = split_left + split_unknown_right
+        icml_right = split_right + split_unknown_left
+        if len(icml_left)!=0 and len(icml_right)!=0:
+            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        
+        # case 3: all left
+        icml_left  = split_left + split_unknown_right + split_unknown_left
+        icml_right = split_right
+        if len(icml_left)!=0 and len(icml_right)!=0:
+            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        
+        # case 4: all right
+        icml_left  = split_left
+        icml_right = split_right + split_unknown_right + split_unknown_left
+        if len(icml_left)!=0 and len(icml_right)!=0:
+            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+                
+        if len(icml_options)==0:
+            return split_left, split_right, split_unknown_right + split_unknown_left, None
+        else:
+            # eventually, we return the 3 list of instance indices distributed across the 3 possible branches
+            y_pred_left, y_pred_right, sse = sorted(icml_options, key=lambda x:x[-1])[0]
+            return split_left, split_right, split_unknown_right + split_unknown_left, (y_pred_left, y_pred_right, sse)
+
     def __simulate_split(self, X, rows, numerical_idx, attacker, costs, feature_id, feature_value):
         """
         This function emulates splitting data X on feature_id using feature_value.
@@ -936,38 +1035,42 @@ class SplitOptimizer(object):
                 self.logger.debug("Simulate splitting on feature id {} using value = {}".format(
                     feature_id, feature_value))
 
-                split_left, split_right, split_unknown = self.__simulate_split(
-                    X, rows, numerical_idx, attacker, costs, feature_id, feature_value)
+                if self.icml2019:
+                    split_left, split_right, split_unknown, optimizer_res = self.__split_icml2019(X, y, rows, numerical_idx, attacker, costs, feature_id, feature_value)
+                    
+                else:
+                    split_left, split_right, split_unknown = self.__simulate_split(
+                        X, rows, numerical_idx, attacker, costs, feature_id, feature_value)
 
-                self.logger.debug(
-                    "Solve constrained optimization problem to deal with unknown instances...")
+                    self.logger.debug(
+                        "Solve constrained optimization problem to deal with unknown instances...")
 
-                updated_constraints = []
+                    updated_constraints = []
 
-                for c in constraints:
-                    c_left = c.propagate_left(
-                        attacker, feature_id, feature_value, numerical_idx[feature_id])
-                    c_right = c.propagate_right(
-                        attacker, feature_id, feature_value, numerical_idx[feature_id])
-                    if c_left and c_right:
-                        updated_constraints.append(c.encode_for_optimizer('U'))
-                    else:
-                        if c_left:
-                            updated_constraints.append(
-                                c.encode_for_optimizer('L'))
-                        if c_right:
-                            updated_constraints.append(
-                                c.encode_for_optimizer('R'))
+                    for c in constraints:
+                        c_left = c.propagate_left(
+                            attacker, feature_id, feature_value, numerical_idx[feature_id])
+                        c_right = c.propagate_right(
+                            attacker, feature_id, feature_value, numerical_idx[feature_id])
+                        if c_left and c_right:
+                            updated_constraints.append(c.encode_for_optimizer('U'))
+                        else:
+                            if c_left:
+                                updated_constraints.append(
+                                    c.encode_for_optimizer('L'))
+                            if c_right:
+                                updated_constraints.append(
+                                    c.encode_for_optimizer('R'))
 
-                optimizer_res = self.__optimize_sse_under_max_attack(y,
-                                                                     current_prediction_score,
-                                                                     split_left,
-                                                                     split_right,
-                                                                     split_unknown,
-                                                                     self.__sse_under_max_attack,
-                                                                     # [c.encode_for_optimizer() for c in constraints]
-                                                                     C=updated_constraints
-                                                                     )
+                    optimizer_res = self.__optimize_sse_under_max_attack(y,
+                                                                         current_prediction_score,
+                                                                         split_left,
+                                                                         split_right,
+                                                                         split_unknown,
+                                                                         self.__sse_under_max_attack,
+                                                                         # [c.encode_for_optimizer() for c in constraints]
+                                                                         C=updated_constraints
+                                                                         )
 
                 # ONLY IF THE OPTIMIZER RETURNS SOMETHING...
                 if optimizer_res:
