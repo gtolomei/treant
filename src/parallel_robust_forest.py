@@ -839,6 +839,8 @@ class SplitOptimizer(object):
                 
         if len(icml_options)==0:
             return split_left, split_right, split_unknown_right + split_unknown_left, None
+        elif (len(split_left)+len(split_unknown_left))==0 or (len(split_right)+len(split_unknown_right))==0:
+            return split_left, split_right, split_unknown_right + split_unknown_left, None
         else:
             # eventually, we return the 3 list of instance indices distributed across the 3 possible branches
             y_pred_left, y_pred_right, sse = sorted(icml_options, key=lambda x:x[-1])[-1]

@@ -37,7 +37,7 @@ BASH_SCRIPT="${BASH_SCRIPT_NAME}.sh"
 ALGO=(icml2019)
 N_ESTIMATORS=(100)
 DEPTHS=(8)
-BUDGETS=(20 40 60 80 100)
+BUDGETS=(20 40 60 80 100 120)
 
 
 echo "*********** Training Robust Random Forest on ${DATASET_NAME} dataset ***********"
