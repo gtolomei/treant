@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This is the top-level (i.e., outermost) script, which is used to launch a set of training runs 
+# This is the top-level (i.e., outermost) script, which is used to launch a set of training runs
 # using several different configurations of hyperparameters.
 
 # Remember to cite GNU Parallel as follows:
@@ -28,16 +28,16 @@ then
 fi
 
 
-PARALLEL=16
+PARALLEL=1
 
 DATASET_NAME=$1
 BASH_SCRIPT_NAME="train_robust_forest"
 BASH_SCRIPT="${BASH_SCRIPT_NAME}.sh"
 
-ALGO=(par-robust)
+ALGO=(icml2019)
 N_ESTIMATORS=(100)
 DEPTHS=(8)
-BUDGETS=(0)
+BUDGETS=(60 90)
 
 
 echo "*********** Training Robust Random Forest on ${DATASET_NAME} dataset ***********"

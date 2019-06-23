@@ -74,7 +74,7 @@ def get_options(cmd_args=None):
         const='standard',
         nargs='?',
         choices=['standard', 'reduced',
-                 'adv-boosting', 'robust', 'par-robust'],
+                 'adv-boosting', 'robust', 'par-robust', 'icml2019'],
         help="""List of possible models to train (default = standard).""")
     cmd_parser.add_argument(
         'n_estimators',
@@ -148,6 +148,12 @@ def get_options(cmd_args=None):
         help="""Path to the file with attack rules.""",
         type=str,
         default='./data/attacks/attacks.json')
+    cmd_parser.add_argument(
+        '-j',
+        '--jobs',
+        help="""Parallelism degree.""",
+        type=int,
+        default=-1)
 
     args = cmd_parser.parse_args(cmd_args)
 
@@ -169,6 +175,7 @@ def get_options(cmd_args=None):
     options['attacker_budget'] = args.attacker_budget
     options['attacks_filename'] = args.attacks_filename
     options['attack_rules_filename'] = args.attack_rules_filename
+    options['jobs'] = args.jobs
 
     return options
 
@@ -225,34 +232,7 @@ def is_strictly_positive(value):
             "{} is an invalid value for the input argument which must be any x, such that x > 0".format(ivalue))
     return ivalue
 
-###########################################################################
 
-
-def load_attack_rules(attack_rules_filename, colnames):
-
-    attack_rules = []
-
-    with open(attack_rules_filename) as json_file:
-        json_data = json.load(json_file)
-        json_attacks = json_data["attacks"]
-        for attack in json_attacks:
-            for feature in attack:
-                feature_atk_list = attack[feature]
-                for feature_atk in feature_atk_list:
-                    pre = feature_atk["pre"]
-                    post = feature_atk["post"]
-                    cost = feature_atk["cost"]
-                    is_numerical = feature_atk["is_numerical"]
-                    attack_rules.append(
-                        rf.AttackerRule(
-                            {colnames.index(feature): (eval(pre))},
-                            {colnames.index(feature): post},
-                            cost=cost,
-                            is_numerical=is_numerical
-                        )
-                    )
-
-    return attack_rules
 
 ##########################################################################
 
@@ -360,7 +340,7 @@ def main(options):
 
     logger.info("==> Loading attack rules from {}".format(
         options['attack_rules_filename']))
-    attack_rules = load_attack_rules(
+    attack_rules = rf.load_attack_rules(
         options['attack_rules_filename'], colnames)
     logger.info("==> Create the corresponding attacker...")
     attacker = rf.Attacker(
@@ -395,6 +375,11 @@ def main(options):
         "==> Create the split optimizer which will be used for this training...")
     optimizer = rf.SplitOptimizer(
         split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'])
+
+    logger.info(
+        "==> Create the split optimizer which will be used for this training...")
+    icml_optimizer = rf.SplitOptimizer(
+        split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'], icml2019=True)
 
     if options['model_type'] == 'robust':
         logger.info("==> Training \"{}\" random forest...".format(
@@ -438,13 +423,46 @@ def main(options):
         bagging = BaggingClassifier(base_estimator=rdt,
                                     n_estimators=options['n_estimators'],
                                     max_features=1.0, max_samples=1.0,
-                                    bootstrap=False, bootstrap_features=False, n_jobs=-1)
+                                    bootstrap=False, bootstrap_features=False, 
+                                    n_jobs=options['jobs'])
         bagging.fit(X_train, y_train)
+        # do some cleaning and prepare to evaluation
+        
         bagging.n_jobs = None
-
+        bagging.base_estimator_.clean_after_training()
+        
         save(bagging, options['output_dirname'] + '/' + output_model_filename,
              options['n_estimators'])
 
+    if options['model_type'] == 'icml2019':
+        from sklearn.ensemble import BaggingClassifier
+
+        # base robust tree
+        rdt = rf.RobustDecisionTree(0,
+                                    attacker=attacker,
+                                    split_optimizer=icml_optimizer,
+                                    max_depth=options['max_depth'],
+                                    min_instances_per_node=options['instances_per_node'],
+                                    max_samples=options['bootstrap_samples'] / 100.0,
+                                    max_features=options['bootstrap_features'] / 100.0,
+                                    feature_blacklist=feature_blacklist,
+                                    affine=False
+                                    )
+
+        bagging = BaggingClassifier(base_estimator=rdt,
+                                    n_estimators=options['n_estimators'],
+                                    max_features=1.0, max_samples=1.0,
+                                    bootstrap=False, bootstrap_features=False, 
+                                    n_jobs=options['jobs'])
+        bagging.fit(X_train, y_train)
+        # do some cleaning and prepare to evaluation
+        
+        bagging.n_jobs = None
+        bagging.base_estimator_.clean_after_training()
+        
+        save(bagging, options['output_dirname'] + '/' + output_model_filename,
+             options['n_estimators'])
+        
 
 if __name__ == "__main__":
     sys.exit(main(get_options()))

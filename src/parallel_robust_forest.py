@@ -10,41 +10,37 @@ import sys
 import os
 import logging
 import dill
+import json
 import numpy as np
 import pandas as pd
-import multiprocessing as mp
 from copy import deepcopy
 from scipy import stats
 from scipy.optimize import minimize
 from sklearn.base import BaseEstimator, ClassifierMixin
-from pathos.multiprocessing import ProcessingPool
 
 
 """
 Logging setup
 """
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO)
 
-LOGGING_FORMAT = '%(asctime)-15s *** %(levelname)s [%(filename)s:%(lineno)s - %(funcName)s()] *** %(message)s'
-formatter = logging.Formatter(LOGGING_FORMAT)
+# LOGGING_FORMAT = '%(asctime)-15s *** %(levelname)s [%(filename)s:%(lineno)s - %(funcName)s()] *** %(message)s'
+# formatter = logging.Formatter(LOGGING_FORMAT)
 
-# log to stdout console
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
+# # log to stdout console
+# console_handler = logging.StreamHandler()
+# console_handler.setLevel(logging.INFO)
+# console_handler.setFormatter(formatter)
+# logger.addHandler(console_handler)
 
-# log to file
-file_handler = logging.FileHandler(
-    filename="./robust_forest.log", mode="w")
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-
-# logging.basicConfig(
-#     format='%(asctime)s : %(levelname)s : %(message)s', level=self.logger.info)
+# # log to file
+# file_handler = logging.FileHandler(
+#     filename="./robust_forest.log", mode="w")
+# file_handler.setLevel(logging.INFO)
+# file_handler.setFormatter(formatter)
+# logger.addHandler(file_handler)
 
 
 # CONSTANTS
@@ -53,6 +49,7 @@ SEED = np.random.seed(73)
 
 
 # <code>Attacker Rule</code>
+
 
 class AttackerRule:
     """
@@ -76,6 +73,14 @@ class AttackerRule:
         self.post_condition = post_condition
         self.cost = cost
         self.is_numerical = is_numerical
+        if (not self.is_numerical):
+            if type(self.pre_conditions[1]) == str:
+                # fix single element
+                self.pre_conditions = (
+                    self.pre_conditions[0], set((self.pre_conditions[1],)))
+            else:
+                self.pre_conditions = (
+                    self.pre_conditions[0], set(self.pre_conditions[1]))
 
         self.logger = logging.getLogger(__name__)
 
@@ -101,9 +106,18 @@ class AttackerRule:
         """
         Return the feature (id) targeted by this rule.
         """
-        return list(self.post_condition.keys())[0]
+        return self.post_condition[0]
 
-    def is_applicable(self, x, numerical_idx):
+    def get_pre_interval(self):
+        if self.is_numerical:
+            return self.pre_conditions[1]
+        else:
+            return None
+
+    def is_num(self):
+        return self.is_numerical
+
+    def is_applicable(self, x):
         """
         Returns whether the rule can be applied to the input instance x or not.
 
@@ -115,18 +129,13 @@ class AttackerRule:
         Return:
             True iff this rule is applicable to x (i.e., if x satisfies ALL the pre-conditions of this rule).
         """
-        for feature_id in self.pre_conditions:
-            left, right = self.pre_conditions[feature_id]
-            # if isinstance(x[feature_id], int) or isinstance(x[feature_id], float):
-            if numerical_idx[feature_id]:  # the feature is numeric
-                if x[feature_id] < left or x[feature_id] > right:
-                    return False
-            else:  # the feature is categorical
-                # right is useless for categorical features as it is the same as left
-                if x[feature_id] != left:
-                    return False
-
-        return True
+        feature_id = self.pre_conditions[0]
+        if self.is_numerical:  # the feature is numeric
+            left, right = self.pre_conditions[1]
+            return left <= x[feature_id] <= right
+        else:  # the feature is categorical
+            valid_set = self.pre_conditions[1]
+            return x[feature_id] in valid_set
 
     def apply(self, x):
         """
@@ -138,18 +147,44 @@ class AttackerRule:
         Return:
             x_prime (numpy.array): A (deep) copy of x yet modified according to the post-condition of this rule.
         """
-        feature_id, feature_attack = list(self.post_condition.items())[0]
-        x_prime = np.copy(x)
+        x_prime = x.copy()
+        feature_id, feature_attack = self.post_condition
         if self.is_numerical:
             x_prime[feature_id] += feature_attack
         else:
             x_prime[feature_id] = feature_attack
         return x_prime
 
-
 # <code>Attacker</code>
 #
 # This class represents an **attacker**. Informally, this is made of a **set of rules** (i.e., <code>AttackerRule</code>s) and a **budget** which it can spend on modifying instances.
+
+
+def load_attack_rules(attack_rules_filename, colnames):
+
+    attack_rules = []
+
+    with open(attack_rules_filename) as json_file:
+        json_data = json.load(json_file)
+        json_attacks = json_data["attacks"]
+        for attack in json_attacks:
+            for feature in attack:
+                feature_atk_list = attack[feature]
+                for feature_atk in feature_atk_list:
+                    pre = feature_atk["pre"]
+                    post = feature_atk["post"]
+                    cost = feature_atk["cost"]
+                    is_numerical = feature_atk["is_numerical"]
+                    attack_rules.append(
+                        AttackerRule(
+                            (colnames.index(feature), eval(pre)),
+                            (colnames.index(feature), post),
+                            cost=cost,
+                            is_numerical=is_numerical
+                        )
+                    )
+
+    return attack_rules
 
 
 class Attacker:
@@ -174,8 +209,6 @@ class Attacker:
     def __getstate__(self):
         d = dict(self.__dict__)
         del d['logger']
-        if 'X' in d:
-            del d['X']
         return d
 
     def __setstate__(self, d):
@@ -200,13 +233,12 @@ class Attacker:
         It either loads all the attacks from the attack file provided as input
         or it computes all the attacks from scratch.
         """
-        self.X = X  # bind the attacked dataset to this attacker
         # infer index of numerical features
-        self.numerical_idx = self.__infer_numerical_features()
+        self.numerical_idx = self.__infer_numerical_features(X)
 
         if attacks_filename is None:  # check if the attack filename is None
             # if that is the case, just compute all the attacks from scratch
-            self.__compute_attacks(attacks_filename)
+            self.__compute_attacks(X, attacks_filename)
         else:  # otherwise, try to load the attacks from the input file
             self.logger.info(
                 "Loading attacks to the dataset from file: {}".format(attacks_filename))
@@ -218,7 +250,7 @@ class Attacker:
                     "Unable to load attacks to the dataset from file using dill: {}\nException: {}".format(attacks_filename, dill_ex))
                 self.logger.info(
                     "Eventually, recompute the attacks from scratch and store them to: {}".format(attacks_filename))
-                self.__compute_attacks(attacks_filename)
+                self.__compute_attacks(X, attacks_filename)
 
     def attack(self, x, feature_id, cost):
         """
@@ -243,26 +275,25 @@ class Attacker:
 
 ################################################### PRIVATE FUNCTIONS ###################################################
 
-    def __infer_numerical_features(self, numerics=['integer', 'floating']):
-        if self.X is not None:
+    def __infer_numerical_features(self, X, numerics=['integer', 'floating']):
+        if X is not None:
             def infer_type(x): return pd.api.types.infer_dtype(x, skipna=True)
-            X_types = list(np.apply_along_axis(infer_type, 0, self.X))
+            X_types = list(np.apply_along_axis(infer_type, 0, X))
             return np.isin(X_types, numerics).tolist()
 
     def __is_equal_perturbation(self, a, b):
         return np.array_equal(a[0], b[0]) and a[1] <= b[1]
 
-    def __compute_attacks(self, attacks_filename):
+    def __compute_attacks(self, X, attacks_filename):
         """
         Return all the attacks of all the instances of the original dataset X, assuming starting cost is 0.
         """
         self.logger.info(
             "Compute all the attacks to the dataset from scratch...")
-        for i in range(self.X.shape[0]):
-            for j in range(self.X.shape[1]):
-                key = (tuple(self.X[i, :].tolist()), j)
-                self.attacks[key] = self.__compute_attack(
-                    self.X[i, :], j, 0)
+        for i in range(X.shape[0]):
+            for j in range(X.shape[1]):
+                key = (tuple(X[i, :].tolist()), j)
+                self.attacks[key] = self.__compute_attack(X[i, :], j, 0)
 
         self.logger.info(
             "Finally, store all the attacks to file: {}".format(attacks_filename))
@@ -292,8 +323,7 @@ class Attacker:
             applicables = [
                 r for r in self.rules if r.get_target_feature() == feature_id]
             # extract the list of applicable rules out of the set of all rules
-            applicables = [r for r in applicables if r.is_applicable(
-                x, self.numerical_idx)]
+            applicables = [r for r in applicables if r.is_applicable(x)]
 
             for r in applicables:  # for each applicable rule
                 # check if the current budget of the attacker is large enough to apply the rule
@@ -304,6 +334,22 @@ class Attacker:
                     if not any(atk for atk in attacks if self.__is_equal_perturbation(atk, (x_prime, cost_prime))):
                         # insert such a new instance in the queue with its updated cost
                         queue.insert(0, (x_prime, cost_prime))
+
+                    # if numerical check extremes !
+                    if r.is_num():
+                        # Evaluate extremes of validity interval
+                        f = r.get_target_feature()
+                        low, high = sorted([x[f], x_prime[f]])
+                        extremes = r.get_pre_interval()
+                        z = set([t for t in extremes if low < t < high])
+                        # apply modifications
+                        for zi in z:
+                            x_prime = x.copy()
+                            x_prime[f] = zi
+                            if not any(atk for atk in attacks if self.__is_equal_perturbation(atk, (x_prime, cost_prime))):
+                                # insert such a new instance in the queue with its updated cost
+                                queue.insert(0, (x_prime, cost_prime))
+
         # eventually, return all the (unique) attacks generated
         return attacks
 
@@ -341,6 +387,10 @@ class Constraint(object):
     def __getstate__(self):
         d = dict(self.__dict__)
         del d['logger']
+        if 'x' in d:
+            del d['x']
+        if 'y' in d:
+            del d['y']
         return d
 
     def __setstate__(self, d):
@@ -443,7 +493,6 @@ class Node(object):
 
     def __init__(self,
                  node_id,
-                 rows,
                  values,
                  n_values,
                  left=None,
@@ -456,8 +505,7 @@ class Node(object):
 
         Args:
             node_id (int): node identifier.
-            rows (numpy.array): boolean mask used for indexing in the subset of the input data matrix located at this node.
-            values (numpy.array): values associated with the instances indexed by rows.
+            values (int): number of instances
             n_values (int): maximum number of unique y values.
             left (:obj:`Node`, optional): left child node. Defaults to None.
             right (:obj:`Node`, optional): left child node. Defaults to None.
@@ -466,7 +514,6 @@ class Node(object):
 
         """
         self.node_id = node_id
-        self.rows = rows
         self.values = values
         self.n_values = n_values
         self.left = left
@@ -476,20 +523,6 @@ class Node(object):
         self.prediction_score = None
         self.prediction = None
         self.loss_value = None
-
-        self.logger = logging.getLogger(__name__)
-
-    def __getstate__(self):
-        d = dict(self.__dict__)
-        del d['logger']
-        return d
-
-    def __setstate__(self, d):
-        if 'logger' in d:
-            d['logger'] = logging.getLogger(d['logger'])
-        else:
-            self.logger = logging.getLogger(__name__)
-        self.__dict__.update(d)
 
     def set_node_prediction(self, prediction_score, threshold=.5):
         self.prediction_score = prediction_score
@@ -523,12 +556,12 @@ class Node(object):
                                                                                                 0],
                                                                                             self.get_node_prediction()[
                                                                                                 1],
-                                                                                            self.values.shape[0],
+                                                                                            self.values,
                                                                                             self.loss_value)
         internal_node_txt = "{}Feature ID: {}; Threshold: {}; N. instances: {}".format(tabs,
                                                                                        self.best_split_feature_id,
                                                                                        self.best_split_feature_value,
-                                                                                       self.values.shape[0]
+                                                                                       self.values
                                                                                        )
 
         if self.is_leaf():  # base case
@@ -556,7 +589,7 @@ class SplitOptimizer(object):
     Of course this class can be instantiated with custom, user-defined splitting functions.
     """
 
-    def __init__(self, split_function=None, split_function_name=None):
+    def __init__(self, split_function=None, split_function_name=None, icml2019=False):
         """
         Class constructor.
 
@@ -574,6 +607,9 @@ class SplitOptimizer(object):
             self.split_function_name = split_function_name
 
         self.logger = logging.getLogger(__name__)
+        
+        self.icml2019 = icml2019
+
 
     def __getstate__(self):
         d = dict(self.__dict__)
@@ -643,8 +679,8 @@ class SplitOptimizer(object):
         if len(y_true) == 0:
             return 0
 
-        EPSILON = 0.000001  # to avoid computing log_2(0) (i.e., P_k > 0)
         freqs = np.bincount(y_true)
+        # to avoid computing log_2(0) (i.e., P_k > 0)
         return -np.sum((freqs + EPSILON) / len(y_true) * np.log2((freqs + EPSILON) / len(y_true)))
 
     @staticmethod
@@ -708,6 +744,112 @@ class SplitOptimizer(object):
             return 0
 
         return 1 / len(y_true) * np.sum(np.abs(y_true - y_pred))
+
+
+    def __icml_split_loss(self, y, L, R):
+        icml_pred_left  = np.mean(y[L])
+        icml_pred_right = np.mean(y[R])
+        icml_loss = self.__sse (y[L] , icml_pred_left) + self.__sse (y[R], icml_pred_right)
+        return icml_pred_left, icml_pred_right, icml_loss
+
+
+    def __split_icml2019(self, X, y, rows, numerical_idx, attacker, costs, feature_id, feature_value):
+        is_numerical = numerical_idx[feature_id]
+        split_left = []  # indices of instances which surely DO satisfy the boolean spitting predicate, disregarding the attacker
+        split_right = []  # indices of instances which surely DO NOT satisfy the boolean spitting predicate, disregarding the attacker
+        # indices of instances which may or may not satisfy the boolean splitting predicate
+        split_unknown_left  = []
+        split_unknown_right = []
+
+        # loop through every instance
+        for row_id in rows:
+            # x = X[row_id, :]  # get the i-th instance
+            # get the i-th cost spent on the i-th instance so far
+            cost = costs[row_id]
+            # collect all the attacks the attacker can do on the i-th instance
+            attacks = attacker.attack(X[row_id, :], feature_id, cost)
+
+            # apply the splitting predicates to all the attacks of the i-th instance, limited to feature_id of interest
+            # this will get a boolean mask (i.e., a binary vector containing as many elements as the number of attacks for this instance)
+            all_left = True
+            all_right = True
+
+            for atk in attacks:
+                if is_numerical:
+                    if atk[0][feature_id] <= feature_value:
+                        all_right = False
+                    else:
+                        all_left = False
+                else:
+                    if atk[0][feature_id] == feature_value:
+                        all_right = False
+                    else:
+                        all_left = False
+
+                if not all_left and not all_right:
+                    break
+
+            if all_left:
+                # it means the splitting predicate is ALWAYS satisfied by this instance, no matter what the attacker does
+                # as such, we can safely place this instance among those which surely go to the true (left) branch
+                split_left.append(row_id)
+
+            elif all_right:
+                # it means the splitting predicate is NEVER satisfied by this instance, no matter what the attacker does
+                # as such, we can safely place this instance among those which surely go to the false (right) branch
+                split_right.append(row_id)
+
+            else:
+                # it means the splitting predicate MAY or MAY NOT be satisfied, depending on what the attacker does
+                # as such, we place this instance among the unknowns
+                if is_numerical:
+                    if X[row_id,feature_id] <= feature_value:
+                        split_unknown_left.append(row_id)
+                    else:
+                        split_unknown_right.append(row_id)
+                else:
+                    if X[row_id,feature_id] == feature_value:
+                        split_unknown_left.append(row_id)
+                    else:
+                        split_unknown_right.append(row_id)
+        
+        icml_options = []
+        
+        # case 1: no perturbations
+        icml_left  = split_left + split_unknown_left
+        icml_right = split_right + split_unknown_right
+        if len(icml_left)!=0 and len(icml_right)!=0:
+            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        
+        # case 2: swap
+        icml_left  = split_left + split_unknown_right
+        icml_right = split_right + split_unknown_left
+        if len(icml_left)!=0 and len(icml_right)!=0:
+            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        
+        # case 3: all left
+        icml_left  = split_left + split_unknown_right + split_unknown_left
+        icml_right = split_right
+        if len(icml_left)!=0 and len(icml_right)!=0:
+            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        
+        # case 4: all right
+        icml_left  = split_left
+        icml_right = split_right + split_unknown_right + split_unknown_left
+        if len(icml_left)!=0 and len(icml_right)!=0:
+            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+                
+        if len(icml_options)==0:
+            return split_left, split_right, split_unknown_right + split_unknown_left, None
+        elif (len(split_left)+len(split_unknown_left))==0 or (len(split_right)+len(split_unknown_right))==0:
+            return split_left, split_right, split_unknown_right + split_unknown_left, None
+        else:
+            # eventually, we return the 3 list of instance indices distributed across the 3 possible branches
+            y_pred_left, y_pred_right, sse = sorted(icml_options, key=lambda x:x[-1])[-1]
+            # overwrite pred_left and right
+            y_pred_left  = np.mean(y[split_left  + split_unknown_left])
+            y_pred_right = np.mean(y[split_right + split_unknown_right])
+            return split_left, split_right, split_unknown_right + split_unknown_left, (y_pred_left, y_pred_right, sse)
 
     def __simulate_split(self, X, rows, numerical_idx, attacker, costs, feature_id, feature_value):
         """
@@ -876,6 +1018,8 @@ class SplitOptimizer(object):
         costs_left = None
         costs_right = None
 
+        assert (not self.icml2019) or len(constraints)==0, '!!! ICML ERROR: Non empty constraints !!!'
+        
         # create a dictionary containing individual values for each feature_id (limited to the slice of data located at this node)
         # {'feature_1': [val_1,1, ..., val_1,k1], ..., 'feature_n': [val_1,n, ..., val_1,kn]}
         # 1. filter out any blacklisted features from the list of features actually considered
@@ -898,38 +1042,42 @@ class SplitOptimizer(object):
                 self.logger.debug("Simulate splitting on feature id {} using value = {}".format(
                     feature_id, feature_value))
 
-                split_left, split_right, split_unknown = self.__simulate_split(
-                    X, rows, numerical_idx, attacker, costs, feature_id, feature_value)
+                if self.icml2019:
+                    split_left, split_right, split_unknown, optimizer_res = self.__split_icml2019(X, y, rows, numerical_idx, attacker, costs, feature_id, feature_value)
 
-                self.logger.debug(
-                    "Solve constrained optimization problem to deal with unknown instances...")
+                else:
+                    split_left, split_right, split_unknown = self.__simulate_split(
+                        X, rows, numerical_idx, attacker, costs, feature_id, feature_value)
 
-                updated_constraints = []
+                    self.logger.debug(
+                        "Solve constrained optimization problem to deal with unknown instances...")
 
-                for c in constraints:
-                    c_left = c.propagate_left(
-                        attacker, feature_id, feature_value, numerical_idx[feature_id])
-                    c_right = c.propagate_right(
-                        attacker, feature_id, feature_value, numerical_idx[feature_id])
-                    if c_left and c_right:
-                        updated_constraints.append(c.encode_for_optimizer('U'))
-                    else:
-                        if c_left:
-                            updated_constraints.append(
-                                c.encode_for_optimizer('L'))
-                        if c_right:
-                            updated_constraints.append(
-                                c.encode_for_optimizer('R'))
+                    updated_constraints = []
 
-                optimizer_res = self.__optimize_sse_under_max_attack(y,
-                                                                     current_prediction_score,
-                                                                     split_left,
-                                                                     split_right,
-                                                                     split_unknown,
-                                                                     self.__sse_under_max_attack,
-                                                                     # [c.encode_for_optimizer() for c in constraints]
-                                                                     C=updated_constraints
-                                                                     )
+                    for c in constraints:
+                        c_left = c.propagate_left(
+                            attacker, feature_id, feature_value, numerical_idx[feature_id])
+                        c_right = c.propagate_right(
+                            attacker, feature_id, feature_value, numerical_idx[feature_id])
+                        if c_left and c_right:
+                            updated_constraints.append(c.encode_for_optimizer('U'))
+                        else:
+                            if c_left:
+                                updated_constraints.append(
+                                    c.encode_for_optimizer('L'))
+                            if c_right:
+                                updated_constraints.append(
+                                    c.encode_for_optimizer('R'))
+
+                    optimizer_res = self.__optimize_sse_under_max_attack(y,
+                                                                         current_prediction_score,
+                                                                         split_left,
+                                                                         split_right,
+                                                                         split_unknown,
+                                                                         self.__sse_under_max_attack,
+                                                                         # [c.encode_for_optimizer() for c in constraints]
+                                                                         C=updated_constraints
+                                                                         )
 
                 # ONLY IF THE OPTIMIZER RETURNS SOMETHING...
                 if optimizer_res:
@@ -998,65 +1146,79 @@ class SplitOptimizer(object):
         # Continue iff there's an actual gain
         if best_gain > 0:
 
-            self.logger.debug(
-                "Assign unknown instance either to left or right split, according to the worst-case scenario...")
-            # get the unknown-y values
-            y_true_unknown = y[best_split_unknown_id]
-            unknown_to_left = np.abs(y_true_unknown - best_pred_left)
-            unknown_to_right = np.abs(y_true_unknown - best_pred_right)
-
-            constraints_left = np.array(
-                [c.propagate_left(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
-            constraints_left = constraints_left[constraints_left != np.array(
-                None)].tolist()
-
-            constraints_right = np.array(
-                [c.propagate_right(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
-            constraints_right = constraints_right[constraints_right != np.array(
-                None)].tolist()
-
-            for i, u in enumerate(best_split_unknown_id):
-                self.logger.debug("Label of unknown instance ID {}: {}".format(
-                    i, y_true_unknown[i]))
+            if self.icml2019:
                 self.logger.debug(
-                    "Distance to left prediction: {:.3f}".format(unknown_to_left[i]))
+                    "Assign unknown instance either to left or right split, according to ICML2019 strategy")
+
+                constraints_left  = []
+                constraints_right = []
+                
+                for u in best_split_unknown_id:
+                    if X[u,best_split_feature_id] <= best_split_feature_value:
+                        best_split_left_id.append(u)
+                    else:
+                        best_split_right_id.append(u)
+
+            else:
                 self.logger.debug(
-                    "Distance to right prediction: {:.3f}".format(unknown_to_right[i]))
+                    "Assign unknown instance either to left or right split, according to the worst-case scenario...")
+                # get the unknown-y values
+                y_true_unknown = y[best_split_unknown_id]
+                unknown_to_left = np.abs(y_true_unknown - best_pred_left)
+                unknown_to_right = np.abs(y_true_unknown - best_pred_right)
 
-                attacks = attacker.attack(
-                    X[u, :], best_split_feature_id, costs[u])
-                min_left = None
-                min_right = None
+                constraints_left = np.array(
+                    [c.propagate_left(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
+                constraints_left = constraints_left[constraints_left != np.array(
+                    None)].tolist()
 
-                if numerical_idx[best_split_feature_id]:
-                    min_left = np.min(
-                        [atk[1] for atk in attacks if atk[0][best_split_feature_id] <= best_split_feature_value])
-                    min_right = np.min(
-                        [atk[1] for atk in attacks if atk[0][best_split_feature_id] > best_split_feature_value])
-                else:
-                    min_left = np.min(
-                        [atk[1] for atk in attacks if atk[0][best_split_feature_id] == best_split_feature_value])
-                    min_right = np.min(
-                        [atk[1] for atk in attacks if atk[0][best_split_feature_id] != best_split_feature_value])
+                constraints_right = np.array(
+                    [c.propagate_right(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
+                constraints_right = constraints_right[constraints_right != np.array(
+                    None)].tolist()
 
-                if unknown_to_left[i] > unknown_to_right[i]:
+                for i, u in enumerate(best_split_unknown_id):
+                    self.logger.debug("Label of unknown instance ID {}: {}".format(
+                        i, y_true_unknown[i]))
                     self.logger.debug(
-                        "Assign unknown instance ID {} to left split as the distance is larger".format(i))
-                    best_split_left_id.append(u)
-                    costs[u] = min_left
-                    constraints_left.append(Constraint(
-                        X[u, :], y[u], costs[u], 1, best_pred_right))
-                    constraints_right.append(Constraint(
-                        X[u, :], y[u], costs[u], 0, best_pred_right))
-                else:
+                        "Distance to left prediction: {:.3f}".format(unknown_to_left[i]))
                     self.logger.debug(
-                        "Assign unknown instance ID {} to right split as the distance is larger".format(i))
-                    best_split_right_id.append(u)
-                    costs[u] = min_right
-                    constraints_left.append(Constraint(
-                        X[u, :], y[u], costs[u], 0, best_pred_left))
-                    constraints_right.append(Constraint(
-                        X[u, :], y[u], costs[u], 1, best_pred_left))
+                        "Distance to right prediction: {:.3f}".format(unknown_to_right[i]))
+
+                    attacks = attacker.attack(
+                        X[u, :], best_split_feature_id, costs[u])
+                    min_left = None
+                    min_right = None
+
+                    if numerical_idx[best_split_feature_id]:
+                        min_left = np.min(
+                            [atk[1] for atk in attacks if atk[0][best_split_feature_id] <= best_split_feature_value])
+                        min_right = np.min(
+                            [atk[1] for atk in attacks if atk[0][best_split_feature_id] > best_split_feature_value])
+                    else:
+                        min_left = np.min(
+                            [atk[1] for atk in attacks if atk[0][best_split_feature_id] == best_split_feature_value])
+                        min_right = np.min(
+                            [atk[1] for atk in attacks if atk[0][best_split_feature_id] != best_split_feature_value])
+
+                    if unknown_to_left[i] > unknown_to_right[i]:
+                        self.logger.debug(
+                            "Assign unknown instance ID {} to left split as the distance is larger".format(i))
+                        best_split_left_id.append(u)
+                        costs[u] = min_left
+                        constraints_left.append(Constraint(
+                            X[u, :], y[u], costs[u], 1, best_pred_right))
+                        constraints_right.append(Constraint(
+                            X[u, :], y[u], costs[u], 0, best_pred_right))
+                    else:
+                        self.logger.debug(
+                            "Assign unknown instance ID {} to right split as the distance is larger".format(i))
+                        best_split_right_id.append(u)
+                        costs[u] = min_right
+                        constraints_left.append(Constraint(
+                            X[u, :], y[u], costs[u], 0, best_pred_left))
+                        constraints_right.append(Constraint(
+                            X[u, :], y[u], costs[u], 1, best_pred_left))
 
             costs_left = {key: costs[key] for key in best_split_left_id}
             costs_right = {key: costs[key] for key in best_split_right_id}
@@ -1104,6 +1266,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                  replace_samples=False,
                  replace_features=False,
                  feature_blacklist={},
+                 affine=True,
                  seed=0
                  ):
         """
@@ -1135,7 +1298,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         self.feature_blacklist = feature_blacklist
         self.feature_blacklist_ids = set(list(feature_blacklist.keys()))
         self.feature_blacklist_names = set(list(feature_blacklist.values()))
-        self.is_affine = self.attacker.is_filled()
+        self.is_affine = affine  # self.attacker.is_filled()
         self.seed = seed
 
         np.random.seed(self.seed)
@@ -1167,9 +1330,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             "*****************************************************")
 
     def __getstate__(self):
-        d = dict(self.__dict__)
-        del d['logger']
-        return d
+        return dict((k, v) for (k, v) in self.__dict__.items() if k not in ['logger'])
 
     def __setstate__(self, d):
         if 'logger' in d:
@@ -1178,19 +1339,21 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.logger = logging.getLogger(__name__)
         self.__dict__.update(d)
 
-    def __infer_numerical_features(self, numerics=['integer', 'floating']):
-        if self.X is not None:
+    def __infer_numerical_features(self, X, numerics=['integer', 'floating']):
+        if X is not None:
             def infer_type(x): return pd.api.types.infer_dtype(x, skipna=True)
-            X_types = np.apply_along_axis(infer_type, 0, self.X)
+            X_types = np.apply_along_axis(infer_type, 0, X)
             return np.isin(X_types, numerics).tolist()
 
-    def __fit(self, rows, attacker, costs, node_prediction,
+    def __fit(self, X_train, y_train, rows, attacker, costs, node_prediction,
               feature_blacklist, n_sample_features, replace_features,
               constraints=[], node_id=[-1], depth=0):
         """
         This function is a private method used to actually train a single Robust Decision Tree on (a slice of) the input data matrix X indexed by rows.
 
         Args:
+            X_train
+            y_train
             rows (numpy.array): boolean mask used for indexing in the subset of the input data matrix.
             attacker (:obj:`Attacker`): an attacker object.
             costs (dict): cost associated with each instance (indexed by rows).
@@ -1203,14 +1366,14 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         """
 
         # base case 1: if X doesn't contain any record at all, just return None
-        if np.size(self.X, 0) == 0:
+        if np.size(X_train, 0) == 0:
             self.logger.info("No more data available")
             return None
 
         # get the current subset of rows indexed
-        X = self.X[rows, :]
+        X = X_train[rows, :]
         # get the corresponding subset of labels/targets indexed
-        y = self.y[rows]
+        y = y_train[rows]
         self.logger.debug("Input data shape X = ({} x {})".format(
             X.shape[0], X.shape[1]))
         self.logger.debug("Input target shape y = ({}, )".format(y.shape[0]))
@@ -1218,7 +1381,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         self.logger.debug("Create node ID: [{}]".format(
             "->".join([str(n_id) for n_id in node_id])))
 
-        node = Node(node_id, rows, y, self.y_n_uniques)
+        node = Node(node_id, len(y), self.y_n_uniques)
         # set current node prediction
         node.set_node_prediction(node_prediction)
 
@@ -1265,8 +1428,8 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             constraints_left, \
             constraints_right, \
             costs_left, \
-            costs_right = self.split_optimizer.optimize_gain(self.X,
-                                                             self.y,
+            costs_right = self.split_optimizer.optimize_gain(X_train,
+                                                             y_train,
                                                              rows,
                                                              self.numerical_idx,
                                                              feature_blacklist,
@@ -1282,7 +1445,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         # Check if there has been an actual best gain
         # (NOTE: if the best gain returned by the optimizer is 0 it means no further split is actually worth it
         # and therefore the current node will become a leaf)
-        if best_gain > 0.0001:  # TO FIX!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        if best_gain > EPSILON:
             # assign current node SSE under max attack
             node.set_loss_value(best_sse_uma)
             self.logger.info("Current node's loss (after best splitting): {:.5f}".format(
@@ -1336,7 +1499,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                     [best_split_feature_id])
 
             # assign to the left node of the current node the result of the recursive call on the left branch
-            node.left = self.__fit(best_split_left_id,
+            node.left = self.__fit(X_train, y_train, best_split_left_id,
                                    attacker,
                                    costs_left,
                                    best_pred_left,  # assign left prediction to node's left child
@@ -1356,7 +1519,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.logger.info("Number of right rows: {}".format(
                 len(best_split_right_id)))
             # assign to the right node of the current node the result of the recursive call on the right branch
-            node.right = self.__fit(best_split_right_id,
+            node.right = self.__fit(X_train, y_train, best_split_right_id,
                                     attacker,
                                     costs_right,
                                     best_pred_right,  # assign right prediction to node's right child
@@ -1386,34 +1549,34 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             y (numpy.array): 1-dimensional array of values of shape (n_samples, )
         """
 
+        np.random.seed()
+
         self.logger.info('Fitting Tree ID {}...  [process ID: {}]'.format(
             self.tree_id, os.getpid()))
-        self.X = X  # store the 2-dimensional input data matrix
-        self.y = y  # store the 1-dimensional input labels/targets
 
         # infer the index of numerical features
-        self.numerical_idx = self.__infer_numerical_features()
+        self.numerical_idx = self.__infer_numerical_features(X)
 
         if self.max_samples <= 0:
             self.max_samples = 1.0
 
         # otherwise, take the minimum between the two numbers
-        self.n_sample_instances = min(np.size(self.X, 0), int(
-            self.max_samples * np.size(self.X, 0)))
-        
+        self.n_sample_instances = min(np.size(X, 0), int(
+            self.max_samples * np.size(X, 0)))
+
         # set the number of classes
-        self.classes_   = np.unique(y, return_inverse=True)
+        self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
 
         if self.max_features <= 0:  # proportion of features to be randomly sampled at each split
             self.max_features = 1.0
 
         # otherwise, take the minimum between the two numbers
-        self.n_sample_features = min(np.size(self.X, 1), int(
-            self.max_features * np.size(self.X, 1)))
+        self.n_sample_features = min(np.size(X, 1), int(
+            self.max_features * np.size(X, 1)))
 
         # get the number of unique y values
-        self.y_n_uniques = np.unique(self.y).size
+        self.y_n_uniques = np.unique(y).size
         self.logger.info("Successfully loaded input data X = ({} x {}) and y values = ({}, )".format(
             X.shape[0], X.shape[1], y.shape[0]))
 
@@ -1421,14 +1584,14 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         if self.bootstrap_samples:
             # randomly select rows (i.e., instances)
             self.logger.info("Randomly sample (with replacement) {:.1f}% of the total number of instances ({}) = {}".
-                             format(self.max_samples * 100, np.size(self.X, 0), self.n_sample_instances))
-            rows = sorted(np.random.choice(range(np.size(self.X, 0)),
+                             format(self.max_samples * 100, np.size(X, 0), self.n_sample_instances))
+            rows = sorted(np.random.choice(range(np.size(X, 0)),
                                            size=self.n_sample_instances, replace=self.replace_samples))
         else:  # otherwise (i.e., this will be a single tree of the ensemble)
             rows = [x for x in range(np.size(X, 0))]
 
         # assign to the internal root reference the result of self.__fit on the whole input data matrix X
-        self.root = self.__fit(rows,
+        self.root = self.__fit(X, y, rows,
                                self.attacker,
                                dict(
                                    zip([x for x in range(np.size(X, 0))], np.zeros(X.shape[0]))),
@@ -1443,7 +1606,14 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
             self.logger.info('Fitting Tree ID {} completed (is_trained = {})! [process ID: {}]'
                              .format(self.tree_id, self.is_trained, os.getpid()))
 
+        # Clean
+        self.clean_after_training()
+
         return self
+
+    def clean_after_training(self):
+        self.attacker = None
+        self.split_optimizer = None
 
     def __predict(self, x, node):
         """
@@ -1503,20 +1673,13 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         """
 
         # prepare the array of predictions
-        predictions = np.empty(np.size(X, 0))
+        predictions = np.empty(X.shape[0])
 
         # Check if the current tree is trained
         if self.is_trained:
-            # Loop through each individual instance
-            for i in range(np.size(X, 0)):
-                self.logger.debug(
-                    "Computing prediction for instance #{}".format(i))
-                # compute the prediction for the i-th instance
-                predictions[i] = self.__predict(X[i, :], self.root)[0]
-                # (i.e., a one-dimensional array corresponding to the i-th row)
-                self.logger.debug(
-                    "Prediction for instance #{} = {}".format(i, predictions[i]))
-        # Finally, return predictions
+            # Get the prediction for all the instances
+            predictions = np.asarray([self.__predict(x=X[i, :], node=self.root)[0] for i in range(X.shape[0])])
+
         return predictions
 
     def predict_proba(self, X, y=None):
@@ -1530,33 +1693,26 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                              samples which we want to know the predictions of.
 
         Returns:
-            predictions (numpy.array): 1-dimensional array of shape (n_test_samples, ).
+            probs (numpy.array): 2-dimensional array of shape (n_test_samples, 2) containing probability scores both for class 0 (1st column) and class 1 (2nd column).
         """
-        probs = np.empty(np.size(X, 0))
-        proba = np.empty(np.size(X, 0))
-        bbc = []
+        probs_0 = np.empty(X.shape[0])
+        probs_1 = np.empty(X.shape[0])
+        # bbc = []
 
         # Check if the current tree is trained
         if self.is_trained:
-            # Loop through each individual instance
-            for i in range(np.size(X, 0)):
-                self.logger.debug(
-                    "Computing prediction for instance #{}".format(i))
-                # compute the prediction probability for the i-th instance
-                probs[i] = self.__predict(X[i, :], self.root)[1]
-                # (i.e., a one-dimensional array corresponding to the i-th row)
-                proba[i] = (1 - probs[i])
-                bbc.append([proba[i], probs[i]])
-                res = np.array(bbc)
-                self.logger.debug(
-                    "Prediction Probability for instance #{} = {:.3f}".format(i, probs[i]))
-        # Finally, return prediction probabilities
-        return res
+            # Get the prediction scores for class 1
+            probs_1 = np.asarray([self.__predict(x=X[i, :], node=self.root)[1] for i in range(X.shape[0])])
+            # Get the prediction scores for class 0
+            probs_0 = (1 - probs_1)
+
+        return np.column_stack((probs_0, probs_1))
 
     def save(self, filename):
         """
         This function is used to persist this RobustDecisionTree object to file on disk using dill.
         """
+        # this is never used by the scikilearn bagging forest
         with open(filename, 'wb') as model_file:
             dill.dump(self, model_file)
 
@@ -1731,7 +1887,7 @@ class RobustForest(object):
             dill.dump(self, model_file)
 
         out_df = pd.DataFrame(columns=[
-                              'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
+            'num_trees', 'learning_rate', 'num_leaves', 'best_round', 'metric', 'filename'])
         out_df = out_df.append({'num_trees': self.n_estimators, 'learning_rate': None, 'num_leaves': None, 'best_round': None,
                                 'metric': 0.0, 'filename': filename}, ignore_index=True)
         out_df.to_csv(filename.split('_B')[0] + '.csv', index=False)
