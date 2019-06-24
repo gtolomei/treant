@@ -1,4 +1,4 @@
-Model,Budget,Binary Err Rate,F1 Micro,F1 Macro,Roc Auc
+Model,Budget,Binary Err Rate,F1 Micro,F1 Macro,ROC AUC
 GBDT,0,0.224615,0.775385,0.756277,0.848038
 Random Forest,0,0.232308,0.767692,0.738854,0.836588
 Adv Boosting [train budget=20],0,0.210000,0.790000,0.770040,0.855570
