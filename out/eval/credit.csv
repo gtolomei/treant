@@ -1,71 +1,71 @@
-Model,Budget,Binary Err Rate,F1 Micro,F1 Macro,ROC AUC
-GBDT,0,0.17,0.83,0.68,0.79
-Random Forest,0,0.17,0.83,0.68,0.79
-Adv Boosting [train budget=10],0,0.17,0.83,0.68,0.78
-Adv Boosting [train budget=30],0,0.18,0.82,0.64,0.79
-Adv Boosting [train budget=40],0,0.18,0.82,0.65,0.79
-Adv Boosting [train budget=60],0,0.18,0.82,0.64,0.79
-Robust Trees [train budget=10],0,0.172833,0.827167,0.686765,0.782245
-Robust Trees [train budget=30],0,0.1675,0.8325,0.685639,0.784267
-Robust Trees [train budget=40],0,0.168333,0.831667,0.682854,0.788038
-Robust Trees [train budget=60],0,0.167,0.833,0.685636,0.785811
-RF-Treant [train budget=10],0,0.18,0.82,0.67,0.77
-RF-Treant [train budget=30],0,0.19,0.81,0.62,0.74
-RF-Treant [train budget=40],0,0.19,0.81,0.62,0.74
-RF-Treant [train budget=60],0,0.19,0.81,0.62,0.74
-GBDT,10,0.22,0.78,0.52,0.69
-Random Forest,10,0.22,0.78,0.53,0.73
-Adv Boosting [train budget=10],10,0.19,0.81,0.64,0.75
-Adv Boosting [train budget=30],10,0.2,0.8,0.57,0.72
-Adv Boosting [train budget=40],10,0.21,0.79,0.58,0.72
-Adv Boosting [train budget=60],10,0.21,0.79,0.58,0.72
-Robust Trees [train budget=10],10,0.201333,0.798667,0.610206,0.74796
-Robust Trees [train budget=30],10,0.221167,0.778833,0.517682,0.736613
-Robust Trees [train budget=40],10,0.221667,0.778333,0.514251,0.723559
-Robust Trees [train budget=60],10,0.220833,0.779167,0.517376,0.716959
-RF-Treant [train budget=10],10,0.18,0.82,0.66,0.77
-RF-Treant [train budget=30],10,0.19,0.81,0.62,0.74
-RF-Treant [train budget=40],10,0.19,0.81,0.62,0.74
-RF-Treant [train budget=60],10,0.19,0.81,0.62,0.74
-GBDT,30,0.24,0.76,0.46,0.58
-Random Forest,30,0.24,0.76,0.45,0.66
-Adv Boosting [train budget=10],30,0.24,0.76,0.47,0.62
-Adv Boosting [train budget=30],30,0.21,0.79,0.54,0.66
-Adv Boosting [train budget=40],30,0.21,0.79,0.56,0.67
-Adv Boosting [train budget=60],30,0.22,0.78,0.55,0.65
-Robust Trees [train budget=10],30,0.242833,0.757167,0.470431,0.655848
-Robust Trees [train budget=30],30,0.237,0.763,0.457044,0.655108
-Robust Trees [train budget=40],30,0.239667,0.760333,0.443255,0.645446
-Robust Trees [train budget=60],30,0.2395,0.7605,0.443967,0.640252
-RF-Treant [train budget=10],30,0.21,0.79,0.59,0.71
-RF-Treant [train budget=30],30,0.19,0.81,0.62,0.74
-RF-Treant [train budget=40],30,0.19,0.81,0.62,0.74
-RF-Treant [train budget=60],30,0.19,0.81,0.62,0.74
-GBDT,40,0.25,0.75,0.44,0.56
-Random Forest,40,0.24,0.76,0.44,0.64
-Adv Boosting [train budget=10],40,0.25,0.75,0.46,0.6
-Adv Boosting [train budget=30],40,0.22,0.78,0.53,0.65
-Adv Boosting [train budget=40],40,0.22,0.78,0.55,0.66
-Adv Boosting [train budget=60],40,0.22,0.78,0.54,0.63
-Robust Trees [train budget=10],40,0.245,0.755,0.46254,0.64227
-Robust Trees [train budget=30],40,0.237667,0.762333,0.454265,0.649186
-Robust Trees [train budget=40],40,0.240833,0.759167,0.438245,0.632293
-Robust Trees [train budget=60],40,0.240833,0.759167,0.438245,0.629155
-RF-Treant [train budget=10],40,0.21,0.79,0.59,0.71
-RF-Treant [train budget=30],40,0.19,0.81,0.62,0.74
-RF-Treant [train budget=40],40,0.19,0.81,0.62,0.74
-RF-Treant [train budget=60],40,0.19,0.81,0.62,0.74
-GBDT,60,0.25,0.75,0.44,0.53
-Random Forest,60,0.24,0.76,0.43,0.63
-Adv Boosting [train budget=10],60,0.25,0.75,0.44,0.58
-Adv Boosting [train budget=30],60,0.22,0.78,0.52,0.63
-Adv Boosting [train budget=40],60,0.22,0.78,0.55,0.64
-Adv Boosting [train budget=60],60,0.22,0.78,0.53,0.62
-Robust Trees [train budget=10],60,0.2465,0.7535,0.456609,0.626968
-Robust Trees [train budget=30],60,0.238,0.762,0.45287,0.640953
-Robust Trees [train budget=40],60,0.2415,0.7585,0.435362,0.618922
-Robust Trees [train budget=60],60,0.241333,0.758667,0.436084,0.613095
-RF-Treant [train budget=10],60,0.21,0.79,0.58,0.71
-RF-Treant [train budget=30],60,0.19,0.81,0.62,0.74
-RF-Treant [train budget=40],60,0.19,0.81,0.62,0.74
-RF-Treant [train budget=60],60,0.19,0.81,0.62,0.74
+Model,Training Budget,Test Budget,Binary Err Rate,F1 Micro,F1 Macro,ROC AUC
+GBDT,0,0,0.17,0.83,0.68,0.79
+Random Forest,0,0,0.17,0.83,0.68,0.79
+Adv Boosting,10,0,0.17,0.83,0.68,0.78
+Adv Boosting,30,0,0.18,0.82,0.64,0.79
+Adv Boosting,40,0,0.18,0.82,0.65,0.79
+Adv Boosting,60,0,0.18,0.82,0.64,0.79
+Robust Trees,10,0,0.172833,0.827167,0.686765,0.782245
+Robust Trees,30,0,0.1675,0.8325,0.685639,0.784267
+Robust Trees,40,0,0.168333,0.831667,0.682854,0.788038
+Robust Trees,60,0,0.167,0.833,0.685636,0.785811
+RF-Treant,10,0,0.18,0.82,0.67,0.77
+RF-Treant,30,0,0.19,0.81,0.62,0.74
+RF-Treant,40,0,0.19,0.81,0.62,0.74
+RF-Treant,60,0,0.19,0.81,0.62,0.74
+GBDT,0,10,0.22,0.78,0.52,0.69
+Random Forest,0,10,0.22,0.78,0.53,0.73
+Adv Boosting,10,10,0.19,0.81,0.64,0.75
+Adv Boosting,30,10,0.2,0.8,0.57,0.72
+Adv Boosting,40,10,0.21,0.79,0.58,0.72
+Adv Boosting,60,10,0.21,0.79,0.58,0.72
+Robust Trees,10,10,0.201333,0.798667,0.610206,0.74796
+Robust Trees,30,10,0.221167,0.778833,0.517682,0.736613
+Robust Trees,40,10,0.221667,0.778333,0.514251,0.723559
+Robust Trees,60,10,0.220833,0.779167,0.517376,0.716959
+RF-Treant,10,10,0.18,0.82,0.66,0.77
+RF-Treant,30,10,0.19,0.81,0.62,0.74
+RF-Treant,40,10,0.19,0.81,0.62,0.74
+RF-Treant,60,10,0.19,0.81,0.62,0.74
+GBDT,0,30,0.24,0.76,0.46,0.58
+Random Forest,0,30,0.24,0.76,0.45,0.66
+Adv Boosting,10,30,0.24,0.76,0.47,0.62
+Adv Boosting,30,30,0.21,0.79,0.54,0.66
+Adv Boosting,40,30,0.21,0.79,0.56,0.67
+Adv Boosting,60,30,0.22,0.78,0.55,0.65
+Robust Trees,10,30,0.242833,0.757167,0.470431,0.655848
+Robust Trees,30,30,0.237,0.763,0.457044,0.655108
+Robust Trees,40,30,0.239667,0.760333,0.443255,0.645446
+Robust Trees,60,30,0.2395,0.7605,0.443967,0.640252
+RF-Treant,10,30,0.21,0.79,0.59,0.71
+RF-Treant,30,30,0.19,0.81,0.62,0.74
+RF-Treant,40,30,0.19,0.81,0.62,0.74
+RF-Treant,60,30,0.19,0.81,0.62,0.74
+GBDT,0,40,0.25,0.75,0.44,0.56
+Random Forest,0,40,0.24,0.76,0.44,0.64
+Adv Boosting,10,40,0.25,0.75,0.46,0.6
+Adv Boosting,30,40,0.22,0.78,0.53,0.65
+Adv Boosting,40,40,0.22,0.78,0.55,0.66
+Adv Boosting,60,40,0.22,0.78,0.54,0.63
+Robust Trees,10,40,0.245,0.755,0.46254,0.64227
+Robust Trees,30,40,0.237667,0.762333,0.454265,0.649186
+Robust Trees,40,40,0.240833,0.759167,0.438245,0.632293
+Robust Trees,60,40,0.240833,0.759167,0.438245,0.629155
+RF-Treant,10,40,0.21,0.79,0.59,0.71
+RF-Treant,30,40,0.19,0.81,0.62,0.74
+RF-Treant,40,40,0.19,0.81,0.62,0.74
+RF-Treant,60,40,0.19,0.81,0.62,0.74
+GBDT,0,60,0.25,0.75,0.44,0.53
+Random Forest,0,60,0.24,0.76,0.43,0.63
+Adv Boosting,10,60,0.25,0.75,0.44,0.58
+Adv Boosting,30,60,0.22,0.78,0.52,0.63
+Adv Boosting,40,60,0.22,0.78,0.55,0.64
+Adv Boosting,60,60,0.22,0.78,0.53,0.62
+Robust Trees,10,60,0.2465,0.7535,0.456609,0.626968
+Robust Trees,30,60,0.238,0.762,0.45287,0.640953
+Robust Trees,40,60,0.2415,0.7585,0.435362,0.618922
+Robust Trees,60,60,0.241333,0.758667,0.436084,0.613095
+RF-Treant,10,60,0.21,0.79,0.58,0.71
+RF-Treant,30,60,0.19,0.81,0.62,0.74
+RF-Treant,40,60,0.19,0.81,0.62,0.74
+RF-Treant,60,60,0.19,0.81,0.62,0.74
