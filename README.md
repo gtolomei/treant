@@ -20,7 +20,7 @@ Describe how to run the pipeline...
 If you use this implementation in your work, please add a reference/citation to our paper. You can use the following BibTeX entry:
 
 ```bash
-@inproceedings{DBLP:conf/kdd/TolomeiSHL17,
+@inproceedings{DBLP:conf/...,
   author    = {Stefano Calzavara and Claudio Lucchese and Gabriele Tolomei and Seyum Assefa Abebe and Salvatore Orlando},
   title     = {TREANT: Training Evasion-Aware Decision Trees},
   booktitle = {},
