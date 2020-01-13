@@ -23,24 +23,24 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 Logging setup
 """
 
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.INFO)
+#logger = logging.getLogger(__name__)
+#logger.setLevel(logging.INFO)
 
 # LOGGING_FORMAT = '%(asctime)-15s *** %(levelname)s [%(filename)s:%(lineno)s - %(funcName)s()] *** %(message)s'
 # formatter = logging.Formatter(LOGGING_FORMAT)
 
 # # log to stdout console
-# console_handler = logging.StreamHandler()
-# console_handler.setLevel(logging.INFO)
-# console_handler.setFormatter(formatter)
-# logger.addHandler(console_handler)
-
-# # log to file
-# file_handler = logging.FileHandler(
-#     filename="./robust_forest.log", mode="w")
-# file_handler.setLevel(logging.INFO)
-# file_handler.setFormatter(formatter)
-# logger.addHandler(file_handler)
+#console_handler = logging.StreamHandler()
+#console_handler.setLevel(logging.INFO)
+#console_handler.setFormatter(formatter)
+#logger.addHandler(console_handler)
+#log to file
+#file_handler = logging.FileHandler(filename="./robust_forest.log", mode="w")
+#file_handler.setLevel(logging.INFO)
+# create formatter and add it to the handlers
+#formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+#file_handler.setFormatter(formatter)
+#logger.addHandler(file_handler)
 
 
 # CONSTANTS
@@ -336,6 +336,9 @@ class Attacker:
                         queue.insert(0, (x_prime, cost_prime))
 
                     # if numerical check extremes !
+                    ##############
+                    # WARNING!!! # This should be for every applicable rule !!!
+                    ##############
                     if r.is_num():
                         # Evaluate extremes of validity interval
                         f = r.get_target_feature()
@@ -435,7 +438,7 @@ class Constraint(object):
         if not attacks:
             return None
         return Constraint(self.x, self.y, np.min([atk[1] for atk in attacks]), self.ineq, self.bound)
-
+    
     def encode_for_optimizer(self, direction):
         """
         Encode this constraint according to the format used by the optimizer.
@@ -523,6 +526,10 @@ class Node(object):
         self.prediction_score = None
         self.prediction = None
         self.loss_value = None
+        self.gain_value = None
+        self.constraints = None
+        self.instance = None 
+        
 
     def set_node_prediction(self, prediction_score, threshold=.5):
         self.prediction_score = prediction_score
@@ -530,13 +537,23 @@ class Node(object):
             self.prediction = 1
         else:
             self.prediction = 0
-
     def set_loss_value(self, loss_value):
         self.loss_value = loss_value
-
+    def set_gain_value(self,gain_value):
+        self.gain_value = gain_value
     def get_loss_value(self):
         return self.loss_value
-
+    def get_gain_value(self):
+        return self.gain_value
+    def set_constraint(self,constraints):
+        self.constraints = len(constraints)
+    def get_constraint(self):
+        return self.constraints
+    def set_instance(self,min_instances_per_node):
+        self.min_instances_per_node = min_instances_per_node
+    def get_instance(self):
+        return self.min_instances_per_node
+    
     def get_node_prediction(self):
         """
         Get the prediction as being computed at this node.
@@ -551,17 +568,24 @@ class Node(object):
 
     def pretty_print(self, out, tabs=''):
 
-        leaf_txt = "{}Prediction: {}; Score: {:.5f}; N. instances: {}; Loss: {:.5f}".format(tabs,
+        leaf_txt = "{}Prediction: {}; Score: {:.5f}; N. instances:{};Loss:{:.5f}; gain:{:.5f}".format(tabs,
                                                                                             self.get_node_prediction()[
                                                                                                 0],
                                                                                             self.get_node_prediction()[
                                                                                                 1],
                                                                                             self.values,
-                                                                                            self.loss_value)
-        internal_node_txt = "{}Feature ID: {}; Threshold: {}; N. instances: {}".format(tabs,
+                                                                                            self.loss_value,
+                                                                                            self.gain_value,
+                                                                                            
+                                                                                         
+                                                                                            )
+        internal_node_txt = "{}Feature ID: {}; Threshold: {}; N. instances: {};Loss:{:.5f}; gain: {:.5f},N.constraints:{:3d}".format(tabs,
                                                                                        self.best_split_feature_id,
                                                                                        self.best_split_feature_value,
-                                                                                       self.values
+                                                                                       self.values,
+                                                                                       self.loss_value,
+                                                                                       self.gain_value,
+                                                                                       self.constraints                                              
                                                                                        )
 
         if self.is_leaf():  # base case
@@ -582,6 +606,7 @@ class SplitOptimizer(object):
 
     - __gini_impurity (classification);
     - __entropy (classification);
+    - __logloss (classificattion);
     - __mse (regression);
     - __sse (regression);
     - __mae (regression).
@@ -589,23 +614,43 @@ class SplitOptimizer(object):
     Of course this class can be instantiated with custom, user-defined splitting functions.
     """
 
-    def __init__(self, split_function=None, split_function_name=None, icml2019=False):
+    def __init__(self,  split_function_name=None,icml2019=False):
         """
         Class constructor.
 
         Args:
             split_function (func): The function used as splitting criterion.
                                      Defaults to None, if so it falls back to __gini_impurity implemented internally.
-        """
+        
+       
         if split_function is None:
-            self.split_function = SplitOptimizer._SplitOptimizer__gini_impurity
-            self.split_function_name = "gini impurity"
+            self.split_function = SplitOptimizer._SplitOptimizer__sse
+            self.split_function_name = "SSE"
+        
         else:
             self.split_function = split_function
             if split_function_name is None:
                 split_function_name = split_function.__name__
             self.split_function_name = split_function_name
-
+        """
+        
+        self.split_function_name = split_function_name
+        
+        if split_function_name =='logloss':
+            self.split_function = SplitOptimizer._SplitOptimizer__logloss
+            self.split_function_name = "logloss"
+            self.mysplit = SplitOptimizer._SplitOptimizer__logloss_under_max_attack
+            
+        elif split_function_name =='sse':
+            self.split_function = SplitOptimizer._SplitOptimizer__sse
+            self.split_function_name = "sse"
+            self.mysplit = SplitOptimizer._SplitOptimizer__sse_under_max_attack 
+            
+        else:
+            if split_function_name is None:
+                self.split_function = SplitOptimizer._SplitOptimizer__logloss
+                self.mysplit = SplitOptimizer._SplitOptimizer__logloss_under_max_attack
+                
         self.logger = logging.getLogger(__name__)
         
         self.icml2019 = icml2019
@@ -726,6 +771,50 @@ class SplitOptimizer(object):
         return np.sum((L - left)**2.0) + \
             np.sum((R - right)**2.0) + \
             np.sum(np.maximum((U - left)**2.0, (U - right)**2.0))
+            
+    @staticmethod
+    def __logloss(y_true, y_pred):
+        
+        """
+        This function computes the logloss, and can be used as the splitting criterion for
+        generating classification trees.
+
+        Args:
+            y_true (numpy.array): array of true label values
+            y_pred (float): predicted value
+
+        Returns:
+            The logloss
+        """
+        eps = 1e-15 
+        y_pred = np.clip(y_pred,eps,1-eps)
+        
+        if len(y_true)==0:
+            return 0
+
+
+        return -np.sum(y_true*np.log(y_pred) +
+                     (1.0-y_true)*np.log(1.0-y_pred))
+    
+    
+    def __logloss_under_max_attack(self,L,R,U,left,right):
+        
+        """
+        Compute logloss Under Max Attack.
+        """
+    
+        eps=1e-15
+        lp = np.clip(left,eps,1-eps)
+        rp = np.clip(right,eps,1-eps)
+        # np.sum( np.max( U*np.log(lp)+(1-U)*np.log(1-lp), U*np.log(rp) +(1-U)*np.log(1-rp) ) )
+        #print(( U*np.log(lp)+(1-U)*np.log(1-lp), U*np.log(rp) +(1-U)*np.log(1-rp) ))
+        #print(np.maximum( -U*np.log(lp)-(1-U)*np.log(1-lp), -U*np.log(rp) -(1-U)*np.log(1-rp) ))
+
+        return -np.sum(L*np.log(lp) +(1-L)*np.log(1-lp)) + \
+               -np.sum(R*np.log(rp) +(1-R)*np.log(1-rp)) + \
+               np.sum( np.maximum( -U*np.log(lp)-(1-U)*np.log(1-lp), -U*np.log(rp) -(1-U)*np.log(1-rp) )) 
+
+
 
     @staticmethod
     def __mae(y_true, y_pred):
@@ -880,7 +969,7 @@ class SplitOptimizer(object):
         split_right = []  # indices of instances which surely DO NOT satisfy the boolean spitting predicate, disregarding the attacker
         # indices of instances which may or may not satisfy the boolean splitting predicate
         split_unknown = []
-
+        
         # loop through every instance
         for row_id in rows:
             # x = X[row_id, :]  # get the i-th instance
@@ -923,10 +1012,12 @@ class SplitOptimizer(object):
                 # it means the splitting predicate MAY or MAY NOT be satisfied, depending on what the attacker does
                 # as such, we place this instance among the unknowns
                 split_unknown.append(row_id)
-
+                
+            
         # eventually, we return the 3 list of instance indices distributed across the 3 possible branches
+        #self.logger.info("number of unknown instances:{}".format(len(split_unknown)))
         return split_left, split_right, split_unknown
-
+        
     def __optimize_sse_under_max_attack(self,
                                         y,
                                         current_prediction_score,
@@ -949,7 +1040,8 @@ class SplitOptimizer(object):
         x_0 = np.array([current_prediction_score, current_prediction_score])
 
         # loss function to be minimized
-        def fun(x): return loss_function(L, R, U, x[0], x[1])
+        
+        def fun(x): return loss_function(self,L, R, U, x[0], x[1])# self 
 
         # constrained optimization
         res = minimize(fun, x_0, method='SLSQP', constraints=C)
@@ -1068,17 +1160,17 @@ class SplitOptimizer(object):
                             if c_right:
                                 updated_constraints.append(
                                     c.encode_for_optimizer('R'))
-
+                    
                     optimizer_res = self.__optimize_sse_under_max_attack(y,
                                                                          current_prediction_score,
                                                                          split_left,
                                                                          split_right,
                                                                          split_unknown,
-                                                                         self.__sse_under_max_attack,
+                                                                         self.mysplit,#__sse_under_max_attack,
                                                                          # [c.encode_for_optimizer() for c in constraints]
                                                                          C=updated_constraints
                                                                          )
-
+                
                 # ONLY IF THE OPTIMIZER RETURNS SOMETHING...
                 if optimizer_res:
 
@@ -1099,7 +1191,7 @@ class SplitOptimizer(object):
                     gain = current_score - sse_uma
                     self.logger.debug(
                         "Gain (Current score - Optimizer's score) = {:.5f}".format(gain))
-
+                    
                     # if gain obtained with this split simulation is greater than the best gain so far
                     if gain > best_gain:
 
@@ -1142,7 +1234,7 @@ class SplitOptimizer(object):
                                                       next_best_split_feature_value,
                                                       best_split_feature_value)
                                               )
-
+         
         # Continue iff there's an actual gain
         if best_gain > 0:
 
@@ -1166,7 +1258,6 @@ class SplitOptimizer(object):
                 y_true_unknown = y[best_split_unknown_id]
                 unknown_to_left = np.abs(y_true_unknown - best_pred_left)
                 unknown_to_right = np.abs(y_true_unknown - best_pred_right)
-
                 constraints_left = np.array(
                     [c.propagate_left(attacker, best_split_feature_id, best_split_feature_value, numerical_idx[best_split_feature_id]) for c in constraints])
                 constraints_left = constraints_left[constraints_left != np.array(
@@ -1180,6 +1271,7 @@ class SplitOptimizer(object):
                 for i, u in enumerate(best_split_unknown_id):
                     self.logger.debug("Label of unknown instance ID {}: {}".format(
                         i, y_true_unknown[i]))
+                    
                     self.logger.debug(
                         "Distance to left prediction: {:.3f}".format(unknown_to_left[i]))
                     self.logger.debug(
@@ -1204,6 +1296,7 @@ class SplitOptimizer(object):
                     if unknown_to_left[i] > unknown_to_right[i]:
                         self.logger.debug(
                             "Assign unknown instance ID {} to left split as the distance is larger".format(i))
+                        
                         best_split_left_id.append(u)
                         costs[u] = min_left
                         constraints_left.append(Constraint(
@@ -1257,8 +1350,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
     def __init__(self,
                  tree_id=0,
                  attacker=Attacker([], 0),
-                 split_optimizer=SplitOptimizer(split_function=SplitOptimizer._SplitOptimizer__sse,
-                                                split_function_name="SSE"),
+                 split_optimizer=SplitOptimizer(split_function_name="SSE"),                             
                  max_depth=8,
                  min_instances_per_node=20,
                  max_samples=1.0,
@@ -1384,7 +1476,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         node = Node(node_id, len(y), self.y_n_uniques)
         # set current node prediction
         node.set_node_prediction(node_prediction)
-
+        
         self.logger.info("Current tree depth: {}".format(depth))
         # compute the current prediction considering the current node
         current_prediction = node.get_node_prediction()[0]
@@ -1394,20 +1486,24 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
         current_prediction_score = node.get_node_prediction()[1]
         self.logger.info("Current node's prediction score: {}".format(
             current_prediction_score))
-
+        
+        
+        
         # call off to the optimizer to compute the current score considering the current node
         current_score = self.split_optimizer.evaluate_split(
             y, current_prediction_score)
         node.set_loss_value(current_score)
-        self.logger.info("Current node's loss: {:.5f}".format(current_score))
-
+        self.logger.info("Current node's loss: {:.5f}".format(current_score)) 
+        #number of instances per node
+        node.set_instance(X.shape[0])
+        self.logger.info("number of instances on current node:{:.5f}".format(node.get_instance()))
         # base case 2: if we have already reached the maximum depth of the tree,
         # return the node just created without trying to further split it
         if depth == self.max_depth:
             self.logger.info("Current depth {} is equal to maximum depth of this tree {}".format(
                 depth, self.max_depth))
             return node
-
+        
         # base case 3: if the number of instances in the current node is less than the minimum number of instances allowed by this tree,
         # return the node just created without trying to further split it
         if X.shape[0] < self.min_instances_per_node:
@@ -1441,17 +1537,27 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                                                              current_score,
                                                              current_prediction_score
                                                              )
-
+            
+         
+          
         # Check if there has been an actual best gain
         # (NOTE: if the best gain returned by the optimizer is 0 it means no further split is actually worth it
         # and therefore the current node will become a leaf)
         if best_gain > EPSILON:
             # assign current node SSE under max attack
             node.set_loss_value(best_sse_uma)
+            node.set_gain_value(best_gain)
             self.logger.info("Current node's loss (after best splitting): {:.5f}".format(
                 node.get_loss_value()))
+            
+            self.logger.info("current node's gain :{:.5f}".format(node.get_gain_value()))
+            
+            #node.set_constraint(constraints)
+            #self.logger.info("current node's constraints  :{:3d}".format(node.get_constraint()))
+            
             # assign to the current node the best feature id
             node.best_split_feature_id = best_split_feature_id
+            
             # if the feature is numerical
             if self.numerical_idx[best_split_feature_id]:
                 # assign to the current node the best splitting feature value as the average of the two values
@@ -1497,7 +1603,7 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                 # so that at the next level of the tree this won't be considered
                 updated_feature_blacklist = updated_feature_blacklist | set(
                     [best_split_feature_id])
-
+            
             # assign to the left node of the current node the result of the recursive call on the left branch
             node.left = self.__fit(X_train, y_train, best_split_left_id,
                                    attacker,
@@ -1509,7 +1615,9 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                                    constraints=constraints_left,
                                    node_id=left_node_id,
                                    depth=depth + 1)
-
+            
+           
+            
             self.logger.debug(
                 "Recursively call the \"fit\" method on the right child node")
             # deep copy of the list used to reference nodes
@@ -1526,13 +1634,22 @@ class RobustDecisionTree(BaseEstimator, ClassifierMixin):
                                     updated_feature_blacklist,
                                     n_sample_features,
                                     replace_features,
-                                    constraints=constraints_right,
+                                    constraints=constraints_right,                                  
                                     node_id=right_node_id,
                                     depth=depth + 1)
-
+           
+            
+            
+            
+        
+        # compute current node constraint
+        
+        node.set_constraint(constraints)
+        self.logger.info("current node's constraints  :{:3d}".format(node.get_constraint()))
+        
         # In the end, return the node
         self.logger.info("Eventually, return the node...")
-
+        
         return node
 
     def zip_fit(self, args):

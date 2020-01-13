@@ -87,7 +87,7 @@ def get_options(cmd_args=None):
         default='sse',
         const='sse',
         nargs='?',
-        choices=['sse', 'mse', 'mae', 'gini_impurity', 'entropy'],
+        choices=['sse', 'mse', 'mae', 'gini_impurity', 'entropy','logloss'],
         help="""List of possible loss function used at training time (default = sse).""")
     cmd_parser.add_argument(
         '-o',
@@ -237,14 +237,14 @@ def is_strictly_positive(value):
 ##########################################################################
 
 
-def build_output_model_filename(dataset_name, model_type, n_estimators, max_depth, instances_per_node, budget, ext="model"):
+def build_output_model_filename(dataset_name, model_type,loss_function, n_estimators, max_depth, instances_per_node, budget, ext="model"):
     # attacked = ""
     # if budget == 0:
     #     attacked = "unattacked"
     # else:
     #     attacked = "attacked-{}".format(budget)
 
-    return "{}_{}_B{}_T{}_D{}_I{}.{}".format(model_type, dataset_name, budget, n_estimators, max_depth, instances_per_node, ext)
+    return "{}_{}_L-{}_B{}_T{}_D{}_I{}.{}".format(model_type, dataset_name,loss_function, budget, n_estimators, max_depth, instances_per_node, ext)
 
 ##########################################################################
 
@@ -352,7 +352,7 @@ def main(options):
     logger.info("==> Extract label vector from {} instances of training set".format(
         options['n_instances']))
     y_train = train.iloc[:, -1].replace(-1, 0).values[:options['n_instances']]
-
+    print(y_train[:10])
     attacker.attack_dataset(
         X_train, attacks_filename='{}_B{}.atks'.format(options['attacks_filename'], str(options['attacker_budget'])))
 
@@ -368,18 +368,24 @@ def main(options):
 
     dataset_name = options['attacks_filename'].split('/')[-1].split('_')[0]
     output_model_filename = build_output_model_filename(
-        dataset_name, options['model_type'], options['n_estimators'], options['max_depth'], options['instances_per_node'], options['attacker_budget'])
+        dataset_name, options['model_type'],options['loss_function'], options['n_estimators'], options['max_depth'],
+        options['instances_per_node'], options['attacker_budget'])
     partial_output_model_filename = output_model_filename.split('.')[0]
-
+# changes implemented here in regard to optimizer options
     logger.info(
         "==> Create the split optimizer which will be used for this training...")
-    optimizer = rf.SplitOptimizer(
-        split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'])
-
-    logger.info(
-        "==> Create the split optimizer which will be used for this training...")
+    if options['loss_function'] == 'sse':
+        
+        optimizer = rf.SplitOptimizer( split_function_name=options['loss_function'])
+                                        
+    if options['loss_function'] == 'logloss':
+        
+        optimizer = rf.SplitOptimizer(  split_function_name=options['loss_function'])
+                                               
+    logger.info("==> Create the split optimizer which will be used for this training...")
+    
     icml_optimizer = rf.SplitOptimizer(
-        split_function=rf.SplitOptimizer._SplitOptimizer__sse, split_function_name=options['loss_function'], icml2019=True)
+         split_function_name=options['loss_function'], icml2019=True)
 
     if options['model_type'] == 'robust':
         logger.info("==> Training \"{}\" random forest...".format(
@@ -388,7 +394,7 @@ def main(options):
         # base robust tree
         rdt = rf.RobustDecisionTree(0,
                                     attacker=attacker,
-                                    split_optimizer=optimizer,
+                                    split_optimizer= optimizer,
                                     max_depth=options['max_depth'],
                                     min_instances_per_node=options['instances_per_node'],
                                     max_samples=options['bootstrap_samples'] / 100.0,

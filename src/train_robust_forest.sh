@@ -1,14 +1,15 @@
 #!/bin/bash
 
-if [ $# -lt 5 ]
+if [ $# -lt 6 ]
 then
     echo "Wrong number of input arguments supplied! Please, invoke the script as follows:"
     echo ""
-    echo "> ./train_robust_forest.sh <DATASET_NAME> <LEARNING_ALGORITHM> <N_ESTIMATORS> <MAX_DEPTH> <ATTACKER_BUDGET>"
+    echo "> ./train_robust_forest.sh <DATASET_NAME> <LEARNING_ALGORITHM> <LOSS_FUNCTION> <N_ESTIMATORS> <MAX_DEPTH> <ATTACKER_BUDGET>"
     echo ""
     echo "where:"
     echo "- <DATASET_NAME> is the name of the dataset used for this training run"
-    echo "- <LEARNING_ALGORITHM> is one in {standard, reduced, adv-boosting, robust}"
+    echo "- <LEARNING_ALGORITHM> is one in {standard, reduced, adv-boosting, robust, par-robust}"
+    echo "- <LOSS_FUNCTION> is one in {sse, mse, mae, gini_impurity, entropy,logloss}"
     echo "- <N_ESTIMATORS> is the number of base estimators used for training this ensemble"
     echo "- <MAX_DEPTH> is the maximum depth of the tree"
     echo "- <ATTACKER_BUDGET> is the budget of the attacker"
@@ -29,9 +30,10 @@ TEST_SET_FILE_PATH=${DATASET_DIR}/${DATASET_NAME}/test.csv.bz2
 MODELS_DIR=${MODELS_ROOT_DIR}/${DATASET_NAME}
 
 LEARNING_ALGORITHM=$2
-N_ESTIMATORS=$3
-MAX_DEPTH=$4
-ATTACKER_BUDGET=$5
+LOSS_FUNCTION=$3
+N_ESTIMATORS=$4
+MAX_DEPTH=$5
+ATTACKER_BUDGET=$6
 ATTACKS_FILE=${DATASET_DIR}/${DATASET_NAME}/attacks/${DATASET_NAME}
 ATTACK_RULES_FILE=${DATASET_DIR}/${DATASET_NAME}/attacks/attacks.json
 
@@ -52,7 +54,7 @@ then
 fi 
 
 
-CMD_NAME="${PYTHON_SCRIPT_NAME} $DATASET_NAME $TRAIN_SET_FILE_PATH $VALID_SET_FILE_PATH $TEST_SET_FILE_PATH $LEARNING_ALGORITHM $N_ESTIMATORS -l sse -o $MODELS_DIR -n $N_INSTANCES -d $MAX_DEPTH -i $N_INSTANCES_PER_NODE -b $ATTACKER_BUDGET -a $ATTACKS_FILE -r $ATTACK_RULES_FILE -bf $FEATURE_SAMPLING -bs $INSTANCE_SAMPLING --jobs $JOBS"
+CMD_NAME="${PYTHON_SCRIPT_NAME} $DATASET_NAME $TRAIN_SET_FILE_PATH $VALID_SET_FILE_PATH $TEST_SET_FILE_PATH $LEARNING_ALGORITHM $N_ESTIMATORS -l $LOSS_FUNCTION -o $MODELS_DIR -n $N_INSTANCES -d $MAX_DEPTH -i $N_INSTANCES_PER_NODE -b $ATTACKER_BUDGET -a $ATTACKS_FILE -r $ATTACK_RULES_FILE -bf $FEATURE_SAMPLING -bs $INSTANCE_SAMPLING --jobs $JOBS"
 
 echo "==> Training $LEARNING_ALGORITHM model..."
 echo $CMD_NAME
