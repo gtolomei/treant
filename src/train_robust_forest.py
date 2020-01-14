@@ -352,7 +352,7 @@ def main(options):
     logger.info("==> Extract label vector from {} instances of training set".format(
         options['n_instances']))
     y_train = train.iloc[:, -1].replace(-1, 0).values[:options['n_instances']]
-    print(y_train[:10])
+    
     attacker.attack_dataset(
         X_train, attacks_filename='{}_B{}.atks'.format(options['attacks_filename'], str(options['attacker_budget'])))
 
