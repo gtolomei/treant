@@ -17,7 +17,7 @@ from copy import deepcopy
 from scipy import stats
 from scipy.optimize import minimize
 from sklearn.base import BaseEstimator, ClassifierMixin
-
+from joblib import Parallel,delayed
 
 """
 Logging setup
@@ -187,12 +187,14 @@ def load_attack_rules(attack_rules_filename, colnames):
     return attack_rules
 
 
-class Attacker:
+class Attacker():
     """
     Class Attacker represents an attacker.
     """
 
     def __init__(self, rules, budget):
+        
+        
         """
         Class constructor.
 
@@ -203,7 +205,7 @@ class Attacker:
         self.rules = rules
         self.budget = budget
         self.attacks = {}
-
+       
         self.logger = logging.getLogger(__name__)
 
     def __getstate__(self):
@@ -235,7 +237,7 @@ class Attacker:
         """
         # infer index of numerical features
         self.numerical_idx = self.__infer_numerical_features(X)
-
+        
         if attacks_filename is None:  # check if the attack filename is None
             # if that is the case, just compute all the attacks from scratch
             self.__compute_attacks(X, attacks_filename)
@@ -290,11 +292,16 @@ class Attacker:
         """
         self.logger.info(
             "Compute all the attacks to the dataset from scratch...")
+        f =[]
+        for r in self.rules:
+            ids =r.get_target_feature()
+            f.append(ids)
+        #print(f)
         for i in range(X.shape[0]):
-            for j in range(X.shape[1]):
+            #list of attacked feature indexes
+            for j in (f):#range(X.shape[1]):# restrict here to only columns which are involved in the attack(feature index)
                 key = (tuple(X[i, :].tolist()), j)
                 self.attacks[key] = self.__compute_attack(X[i, :], j, 0)
-
         self.logger.info(
             "Finally, store all the attacks to file: {}".format(attacks_filename))
         with open(attacks_filename, 'wb') as attacks_file:
@@ -310,10 +317,14 @@ class Attacker:
             cost (float): cost associated with the instance that has been spent so far.
             feature_id (int, optional): id of the feature targeted by this attack
         """
+        
         queue = [
             (x, cost)]  # enqueue the instance as it is, along with its associated cost computed so far
         attacks = []  # prepare the list of attacks to be eventually returned
+        # the index of features to be attacked
         # loop until the queue is not empty
+        
+                
         while len(queue) != 0:
             # dequeue the first inserted element (i.e., an instance and its updated cost spent)
             x, b = queue.pop()
@@ -322,9 +333,12 @@ class Attacker:
             # check the rules applicable to the current feature_id
             applicables = [
                 r for r in self.rules if r.get_target_feature() == feature_id]
+            
             # extract the list of applicable rules out of the set of all rules
             applicables = [r for r in applicables if r.is_applicable(x)]
-
+             
+            
+             #   print(feature_id)
             for r in applicables:  # for each applicable rule
                 # check if the current budget of the attacker is large enough to apply the rule
                 if self.budget >= b + r.get_cost():
