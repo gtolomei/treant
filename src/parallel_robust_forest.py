@@ -259,19 +259,26 @@ class Attacker():
         This function retrieves the list of attacks to a given instance,
         on a given feature, subject to a given cost.
         """
-        attack_key = (tuple(x.tolist()),
-                      feature_id)  # get the key of this attack
-        # if attacks to this instance have NOT been already computed
-        if attack_key not in self.attacks:
-            self.logger.info(
-                "Attacks for this instance have not been computed yet! Let's compute those from scratch")
-            # compute the attack from scratch and store it as a new entry in the dictionary of attacks
-            self.attacks[attack_key] = self.__compute_attack(
-                x, feature_id, cost)
+        fid =[]
+        for r in self.rules:
+            ids =r.get_target_feature()
+            fid.append(ids)
+        if feature_id in fid:
+            attack_key = (tuple(x.tolist()),
+                          feature_id)  # get the key of this attack
+            # if attacks to this instance have NOT been already computed
+            if attack_key not in self.attacks:
+                self.logger.info(
+                    "Attacks for this instance have not been computed yet! Let's compute those from scratch")
+                # compute the attack from scratch and store it as a new entry in the dictionary of attacks
+                self.attacks[attack_key] = self.__compute_attack(
+                    x, feature_id, cost)
 
-        attacks_xf = self.attacks[attack_key]
-        attacks_xf = [x for x in attacks_xf if x[1] <= self.budget - cost]
-        attacks_xf = [(x[0], x[1] + cost) for x in attacks_xf]
+            attacks_xf = self.attacks[attack_key]
+            attacks_xf = [x for x in attacks_xf if x[1] <= self.budget - cost]
+            attacks_xf = [(x[0], x[1] + cost) for x in attacks_xf]
+        else:
+            attacks_xf = [ (x,0+cost)]
 
         return attacks_xf
 
@@ -292,14 +299,14 @@ class Attacker():
         """
         self.logger.info(
             "Compute all the attacks to the dataset from scratch...")
+        #index list for features to be perturbed 
         f =[]
         for r in self.rules:
             ids =r.get_target_feature()
             f.append(ids)
         #print(f)
         for i in range(X.shape[0]):
-            #list of attacked feature indexes
-            for j in (f):#range(X.shape[1]):# restrict here to only columns which are involved in the attack(feature index)
+            for j in(f): #range(X.shape[1]):# restrict here to only columns which are involved in the attack(feature index)
                 key = (tuple(X[i, :].tolist()), j)
                 self.attacks[key] = self.__compute_attack(X[i, :], j, 0)
         self.logger.info(
@@ -553,18 +560,25 @@ class Node(object):
             self.prediction = 0
     def set_loss_value(self, loss_value):
         self.loss_value = loss_value
+        
     def set_gain_value(self,gain_value):
         self.gain_value = gain_value
+        
     def get_loss_value(self):
         return self.loss_value
+    
     def get_gain_value(self):
         return self.gain_value
+    
     def set_constraint(self,constraints):
         self.constraints = len(constraints)
+        
     def get_constraint(self):
         return self.constraints
+    
     def set_instance(self,min_instances_per_node):
         self.min_instances_per_node = min_instances_per_node
+        
     def get_instance(self):
         return self.min_instances_per_node
     
@@ -850,10 +864,19 @@ class SplitOptimizer(object):
 
 
     def __icml_split_loss(self, y, L, R):
-        icml_pred_left  = np.mean(y[L])
-        icml_pred_right = np.mean(y[R])
-        icml_loss = self.__sse (y[L] , icml_pred_left) + self.__sse (y[R], icml_pred_right)
-        return icml_pred_left, icml_pred_right, icml_loss
+        if len(L)==0:
+            icml_pred_right = np.mean(y[R])
+            icml_loss = self.__sse (y[R], icml_pred_right)
+            return None, icml_pred_right, icml_loss
+        elif len(R)==0:
+            icml_pred_left  = np.mean(y[L])
+            icml_loss = self.__sse (y[L] , icml_pred_left)
+            return icml_pred_left, None, icml_loss
+        else:
+            icml_pred_left  = np.mean(y[L])
+            icml_pred_right = np.mean(y[R])
+            icml_loss = self.__sse (y[L] , icml_pred_left) + self.__sse (y[R], icml_pred_right)
+            return icml_pred_left, icml_pred_right, icml_loss
 
 
     def __split_icml2019(self, X, y, rows, numerical_idx, attacker, costs, feature_id, feature_value):
@@ -921,28 +944,29 @@ class SplitOptimizer(object):
         # case 1: no perturbations
         icml_left  = split_left + split_unknown_left
         icml_right = split_right + split_unknown_right
-        if len(icml_left)!=0 and len(icml_right)!=0:
-            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        #if len(icml_left)!=0 and len(icml_right)!=0:
+        icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
         
         # case 2: swap
         icml_left  = split_left + split_unknown_right
         icml_right = split_right + split_unknown_left
-        if len(icml_left)!=0 and len(icml_right)!=0:
-            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        #if len(icml_left)!=0 and len(icml_right)!=0:
+        icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
         
         # case 3: all left
         icml_left  = split_left + split_unknown_right + split_unknown_left
         icml_right = split_right
-        if len(icml_left)!=0 and len(icml_right)!=0:
-            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        #if len(icml_left)!=0 and len(icml_right)!=0:
+        icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
         
         # case 4: all right
         icml_left  = split_left
         icml_right = split_right + split_unknown_right + split_unknown_left
-        if len(icml_left)!=0 and len(icml_right)!=0:
-            icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
+        #if len(icml_left)!=0 and len(icml_right)!=0:
+        icml_options.append( self.__icml_split_loss(y=y, L=icml_left, R=icml_right) )
                 
         if len(icml_options)==0:
+            # this is not happening any more
             return split_left, split_right, split_unknown_right + split_unknown_left, None
         elif (len(split_left)+len(split_unknown_left))==0 or (len(split_right)+len(split_unknown_right))==0:
             return split_left, split_right, split_unknown_right + split_unknown_left, None

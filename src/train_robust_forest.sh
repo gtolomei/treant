@@ -8,7 +8,7 @@ then
     echo ""
     echo "where:"
     echo "- <DATASET_NAME> is the name of the dataset used for this training run"
-    echo "- <LEARNING_ALGORITHM> is one in {standard, reduced, adv-boosting, robust, par-robust}"
+    echo "- <LEARNING_ALGORITHM> is one in {standard, reduced, adv-boosting, robust, par-robust,icml2019}"
     echo "- <LOSS_FUNCTION> is one in {sse, mse, mae, gini_impurity, entropy,logloss}"
     echo "- <N_ESTIMATORS> is the number of base estimators used for training this ensemble"
     echo "- <MAX_DEPTH> is the maximum depth of the tree"
@@ -38,11 +38,11 @@ ATTACKS_FILE=${DATASET_DIR}/${DATASET_NAME}/attacks/${DATASET_NAME}
 ATTACK_RULES_FILE=${DATASET_DIR}/${DATASET_NAME}/attacks/attacks.json
 
 # HYPERPARAMETERS
-N_INSTANCES=50000
+N_INSTANCES=30000
 N_INSTANCES_PER_NODE=20
 FEATURE_SAMPLING=80
 INSTANCE_SAMPLING=80
-JOBS=40
+JOBS=1
 
 # Check if there is any log file in the current working directory
 count=`ls -1 ./train_robust_forest_${DATASET_NAME}.log 2>/dev/null | wc -l`
