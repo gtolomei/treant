@@ -382,10 +382,9 @@ def main(options):
         
         optimizer = rf.SplitOptimizer(  split_function_name=options['loss_function'])
                                                
-    logger.info("==> Create the split optimizer which will be used for this training...")
+    #logger.info("==> Create the split optimizer which will be used for this training...")
     
-    icml_optimizer = rf.SplitOptimizer(
-         split_function_name=options['loss_function'], icml2019=True)
+    
 
     if options['model_type'] == 'robust':
         logger.info("==> Training \"{}\" random forest...".format(
@@ -414,7 +413,9 @@ def main(options):
 
     if options['model_type'] == 'par-robust':
         from sklearn.ensemble import BaggingClassifier
-
+        logger.info("training \"{}\" treant".format(options['model_type']))
+        import time 
+        start_time = time.time()
         # base robust tree
         rdt = rf.RobustDecisionTree(0,
                                     attacker=attacker,
@@ -439,8 +440,12 @@ def main(options):
         
         save(bagging, options['output_dirname'] + '/' + output_model_filename,
              options['n_estimators'])
-
+        print("--- %s seconds ---" % (time.time() - start_time))
     if options['model_type'] == 'icml2019':
+        
+        logger.info("==> Create the split optimizer which will be used for this training...")
+        icml_optimizer = rf.SplitOptimizer(split_function_name=options['loss_function'], icml2019=True)
+        logger.info("training \"{}\" treant".format(options['model_type']))
         from sklearn.ensemble import BaggingClassifier
 
         # base robust tree
