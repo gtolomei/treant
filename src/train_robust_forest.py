@@ -153,7 +153,7 @@ def get_options(cmd_args=None):
         '--jobs',
         help="""Parallelism degree.""",
         type=int,
-        default=-1)
+        default=1)
 
     args = cmd_parser.parse_args(cmd_args)
 
