@@ -277,11 +277,12 @@ class Attacker():
             attacks_xf = self.attacks[attack_key]
             attacks_xf = [x for x in attacks_xf if x[1] <= self.budget - cost]
             attacks_xf = [(x[0], x[1] + cost) for x in attacks_xf]
+            
         else:
             attacks_xf = [ (x,0+cost)]
-
+            
         return attacks_xf
-
+        
 ################################################### PRIVATE FUNCTIONS ###################################################
 
     def __infer_numerical_features(self, X, numerics=['integer', 'floating']):
